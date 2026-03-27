@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "databricks-debug": {
+      "command": "databricks-debug-mcp",
+      "env": {
+        "DATABRICKS_CONFIG_PROFILE": "DEFAULT"
+      }
+    }
+  }
+}
