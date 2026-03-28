@@ -1,8 +1,10 @@
+import html as html_mod
+import re
 from urllib.parse import quote
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import spark_ui_request, get_spark_app_id, assert_cluster_running
+from ..client import spark_ui_html, spark_ui_request, get_spark_app_id, assert_cluster_running
 from ..formatting import format_duration, format_bytes
 
 _VALID_STAGE_STATUS = {"ACTIVE", "COMPLETE", "FAILED"}
@@ -203,34 +205,265 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def get_streaming_queries(cluster_id: str) -> str:
-        """List active streaming queries with latest progress. Only works on RUNNING clusters."""
+        """All structured streaming queries — active AND completed/failed — with status,
+        duration, throughput, batch counts, and full error traces for failures.
+
+        Active queries: fetched from REST API when available, HTML fallback otherwise.
+        Completed/failed queries: always from HTML (no REST API exists for these).
+        Only works on RUNNING clusters.
+        """
         err = assert_cluster_running(cluster_id)
         if err:
             return err
 
+        lines = []
+
+        # --- Active queries: prefer REST API ---
+        rest_ok = False
         try:
             app_id = get_spark_app_id(cluster_id)
             data = spark_ui_request(cluster_id, f"applications/{app_id}/streaming/statistics")
-        except Exception as e:
-            return (
-                f"Streaming statistics endpoint unavailable: {e}\n"
-                "For persistent streaming metrics, implement a StreamingQueryListener that writes "
-                "progress events to a Delta table."
-            )
+            if isinstance(data, list) and data:
+                rest_ok = True
+                lines.append(f"Active Streaming Queries ({len(data)}):\n")
+                lines.append(
+                    f"{'Name':<42} {'Status':<10} {'ID':<40} {'isActive'}"
+                )
+                lines.append("-" * 100)
+                for q in data:
+                    name = q.get("name", "?")
+                    status = "ACTIVE" if q.get("isActive") else "INACTIVE"
+                    qid = q.get("id", "?")
+                    lines.append(f"{name:<42} {status:<10} {qid:<40}")
+        except Exception:
+            pass
 
-        return str(data)
+        # --- Always scrape HTML for completed/failed queries + richer active data ---
+        try:
+            page = spark_ui_html(cluster_id, "StreamingQuery/")
+            active_html, completed_html = _parse_streaming_queries_html_parts(page)
+
+            if not rest_ok and active_html:
+                lines.append(active_html)
+
+            if completed_html:
+                lines.append(completed_html)
+        except Exception as e:
+            if not rest_ok:
+                return f"Failed to fetch streaming queries: {e}"
+            lines.append(f"\n(Could not fetch completed/failed queries: {e})")
+
+        return "\n".join(lines) if lines else "No streaming queries found."
 
     @mcp.tool()
-    def get_streaming_query_progress(cluster_id: str, query_id: str) -> str:
-        """Detailed batch-level progress for a specific streaming query. Only works on RUNNING clusters."""
+    def get_streaming_query_progress(cluster_id: str, run_id: str) -> str:
+        """Batch-level metrics for a streaming query: input rate, processing rate,
+        batch duration breakdown (addBatch, queryPlanning, walCommit, etc.).
+
+        Use the run_id from get_streaming_queries output.
+        Tries REST API first, falls back to HTML stats page.
+        Only works on RUNNING clusters.
+        """
         err = assert_cluster_running(cluster_id)
         if err:
             return err
 
+        # --- Try REST API first ---
         try:
             app_id = get_spark_app_id(cluster_id)
-            data = spark_ui_request(cluster_id, f"applications/{app_id}/streaming/statistics/{quote(query_id)}")
+            data = spark_ui_request(
+                cluster_id,
+                f"applications/{app_id}/streaming/statistics/{quote(run_id)}",
+            )
+            if data:
+                return _format_streaming_progress_rest(data, run_id)
+        except Exception:
+            pass
+
+        # --- Fall back to HTML ---
+        try:
+            page = spark_ui_html(cluster_id, f"StreamingQuery/statistics?id={quote(run_id)}")
         except Exception as e:
             return f"Failed to fetch streaming query progress: {e}"
 
-        return str(data)
+        return _parse_streaming_query_stats_html(page, run_id)
+
+
+def _clean_html(text: str) -> str:
+    """Strip HTML tags and decode entities."""
+    return html_mod.unescape(re.sub(r"<[^>]+>", " ", text)).strip()
+
+
+def _parse_streaming_queries_html_parts(page: str) -> tuple[str, str]:
+    """Parse /StreamingQuery/ HTML into (active_text, completed_text).
+
+    Returns two strings so the caller can decide whether to use the active
+    section (only when REST API failed) or just the completed section.
+    """
+    rows = re.findall(r"<tr>\s*((?:<td.*?</td>\s*)+)</tr>", page, re.DOTALL)
+
+    active: list[dict] = []
+    completed: list[dict] = []
+
+    for row in rows:
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.DOTALL)
+        if len(cells) < 9:
+            continue
+
+        name = _clean_html(cells[0])
+        status = _clean_html(cells[1])
+        query_id = _clean_html(cells[2])
+        run_id_match = re.search(r'href="[^"]*id=([^"&]+)"', cells[3])
+        run_id = run_id_match.group(1) if run_id_match else _clean_html(cells[3])
+        start_time = _clean_html(cells[4])
+        duration = _clean_html(cells[5])
+        avg_input = _clean_html(cells[6])
+        avg_process = _clean_html(cells[7])
+        latest_batch = _clean_html(cells[8])
+
+        error = ""
+        if len(cells) > 9:
+            error_cell = cells[9]
+            pre_match = re.search(r"<pre>(.*?)</pre>", error_cell, re.DOTALL)
+            if pre_match:
+                error = _clean_html(pre_match.group(1))
+            else:
+                error = _clean_html(error_cell)
+            error = re.sub(r"\s*\+details\s*", "", error).strip()
+
+        entry = {
+            "name": name, "status": status, "query_id": query_id,
+            "run_id": run_id, "start_time": start_time, "duration": duration,
+            "avg_input_sec": avg_input, "avg_process_sec": avg_process,
+            "latest_batch": latest_batch, "error": error,
+        }
+
+        if status == "FAILED":
+            completed.append(entry)
+        else:
+            active.append(entry)
+
+    # Format active section
+    active_lines: list[str] = []
+    if active:
+        active_lines.append(f"Active Streaming Queries ({len(active)}):\n")
+        active_lines.append(
+            f"{'Name':<42} {'Status':<10} {'Duration':<28} "
+            f"{'In/s':<8} {'Proc/s':<8} {'Batch':<8} Run ID"
+        )
+        active_lines.append("-" * 130)
+        for q in active:
+            active_lines.append(
+                f"{q['name']:<42} {q['status']:<10} {q['duration']:<28} "
+                f"{q['avg_input_sec']:<8} {q['avg_process_sec']:<8} "
+                f"{q['latest_batch']:<8} {q['run_id']}"
+            )
+
+    # Format completed/failed section
+    completed_lines: list[str] = []
+    if completed:
+        completed_lines.append(f"\nCompleted/Failed Streaming Queries ({len(completed)}):\n")
+        for q in completed:
+            completed_lines.append(f"  {q['name']} [{q['status']}]")
+            completed_lines.append(f"    Run ID:       {q['run_id']}")
+            completed_lines.append(f"    Duration:     {q['duration']}")
+            completed_lines.append(f"    Latest Batch: {q['latest_batch']}")
+            completed_lines.append(
+                f"    Throughput:   {q['avg_input_sec']} in/s, {q['avg_process_sec']} proc/s"
+            )
+            if q["error"]:
+                error_lines = q["error"].split("\n")
+                if len(error_lines) > 30:
+                    completed_lines.append("    Error (truncated):")
+                    for el in error_lines[:20]:
+                        completed_lines.append(f"      {el}")
+                    completed_lines.append(
+                        f"      ... ({len(error_lines) - 25} lines omitted)"
+                    )
+                    for el in error_lines[-5:]:
+                        completed_lines.append(f"      {el}")
+                else:
+                    completed_lines.append("    Error:")
+                    for el in error_lines:
+                        completed_lines.append(f"      {el}")
+            completed_lines.append("")
+
+    return "\n".join(active_lines), "\n".join(completed_lines)
+
+
+def _format_streaming_progress_rest(data: dict, run_id: str) -> str:
+    """Format streaming query progress from the REST API response."""
+    lines = [f"Streaming Query Progress: {run_id}\n"]
+
+    if isinstance(data, dict):
+        for key in ("name", "id", "runId", "isActive", "timestamp"):
+            if key in data:
+                lines.append(f"  {key}: {data[key]}")
+
+        recent = data.get("recentProgress", [])
+        if recent:
+            latest = recent[-1]
+            lines.append(f"\nLatest batch:")
+            lines.append(f"  Input rows/s:   {latest.get('inputRowsPerSecond', '?')}")
+            lines.append(f"  Process rows/s: {latest.get('processedRowsPerSecond', '?')}")
+            lines.append(f"  Batch ID:       {latest.get('batchId', '?')}")
+            dur = latest.get("durationMs", {})
+            if dur:
+                lines.append(f"  Duration (ms):  {dur}")
+    else:
+        lines.append(str(data))
+
+    return "\n".join(lines)
+
+
+def _parse_streaming_query_stats_html(page: str, run_id: str) -> str:
+    """Parse the /StreamingQuery/statistics?id=... HTML page for batch metrics.
+
+    Extracts the embedded JavaScript time-series data (input rate, processing rate,
+    input rows, batch duration breakdown).
+    """
+    lines = [f"Streaming Query Progress: {run_id}\n"]
+
+    # Extract JS variables with time-series data
+    # v1=input rate, v2=processing rate, v3=input rows, plus batch duration breakdown
+    js_vars = re.findall(r"var\s+(v\d+)\s*=\s*(\[.*?\]);", page, re.DOTALL)
+
+    label_map = {"v1": "Input Rate (rows/s)", "v2": "Processing Rate (rows/s)", "v3": "Input Rows"}
+
+    for var_name, var_data in js_vars:
+        label = label_map.get(var_name)
+        if not label:
+            continue
+        try:
+            import json
+            data = json.loads(var_data)
+            if data:
+                values = [d["y"] for d in data if "y" in d]
+                if values:
+                    lines.append(f"{label}:")
+                    lines.append(f"  Latest:  {values[-1]:.2f}")
+                    lines.append(f"  Average: {sum(values) / len(values):.2f}")
+                    lines.append(f"  Min:     {min(values):.2f}")
+                    lines.append(f"  Max:     {max(values):.2f}")
+                    lines.append(f"  Samples: {len(values)}")
+                    lines.append("")
+        except Exception:
+            pass
+
+    # Extract batch duration breakdown from the JSON blocks
+    batch_data = re.findall(
+        r'\{x:\s*"([^"]+)"[^}]*"addBatch":\s*"([^"]+)"[^}]*"queryPlanning":\s*"([^"]+)"[^}]*"walCommit":\s*"([^"]+)"',
+        page,
+    )
+    if batch_data:
+        recent = batch_data[-5:]
+        lines.append("Recent Batch Duration Breakdown (ms):")
+        lines.append(f"  {'Time':<16} {'addBatch':<14} {'queryPlanning':<16} {'walCommit':<12}")
+        lines.append("  " + "-" * 56)
+        for time_str, add_batch, query_plan, wal in recent:
+            lines.append(f"  {time_str:<16} {float(add_batch):>10.0f}ms   {float(query_plan):>10.0f}ms     {float(wal):>8.0f}ms")
+
+    if len(lines) <= 2:
+        lines.append("No batch metrics available.")
+
+    return "\n".join(lines)

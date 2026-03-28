@@ -14,18 +14,32 @@ def get_workspace_client() -> WorkspaceClient:
     return _client
 
 
+def _auth_headers() -> dict[str, str]:
+    """Get authentication headers from the Databricks SDK."""
+    w = get_workspace_client()
+    return dict(w.config.authenticate())
+
+
 def spark_ui_request(cluster_id: str, path: str) -> dict:
     """GET from the Spark driver proxy API. Only works on RUNNING clusters."""
     w = get_workspace_client()
     host = w.config.host.rstrip("/")
     url = f"{host}/driver-proxy-api/o/0/{cluster_id}/40001/api/v1/{path.lstrip('/')}"
 
-    headers: dict[str, str] = {}
-    w.config.authenticate(headers)
-
-    resp = httpx.get(url, headers=headers, timeout=30.0)
+    resp = httpx.get(url, headers=_auth_headers(), timeout=30.0)
     resp.raise_for_status()
     return resp.json()
+
+
+def spark_ui_html(cluster_id: str, path: str) -> str:
+    """GET an HTML page from the Spark UI (non-API endpoints like /StreamingQuery/)."""
+    w = get_workspace_client()
+    host = w.config.host.rstrip("/")
+    url = f"{host}/driver-proxy-api/o/0/{cluster_id}/40001/{path.lstrip('/')}"
+
+    resp = httpx.get(url, headers=_auth_headers(), timeout=30.0, follow_redirects=True)
+    resp.raise_for_status()
+    return resp.text
 
 
 def get_spark_app_id(cluster_id: str) -> str:
