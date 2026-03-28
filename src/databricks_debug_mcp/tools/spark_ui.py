@@ -67,6 +67,86 @@ def register(mcp: FastMCP) -> None:
         return "\n".join(lines)
 
     @mcp.tool()
+    def get_executor_memory(cluster_id: str) -> str:
+        """Memory health report for OOM diagnosis: JVM heap peak vs allocated,
+        GC time, Python worker RSS, off-heap, direct memory, total completed tasks,
+        and uptime. Flags when heap usage exceeds 80%.
+
+        This is the first tool to use when investigating OOM (exit code 137) or
+        slow GC pauses on long-running clusters. Only works on RUNNING clusters.
+        """
+        err = assert_cluster_running(cluster_id)
+        if err:
+            return err
+
+        try:
+            app_id = get_spark_app_id(cluster_id)
+            executors = spark_ui_request(cluster_id, f"applications/{app_id}/executors")
+        except Exception as e:
+            return f"Failed to fetch executor memory: {e}"
+
+        lines = [f"Memory Health Report — cluster {cluster_id}\n"]
+
+        for ex in executors:
+            eid = ex.get("id", "?")
+            mem_used = ex.get("memoryUsed", 0)
+            mem_max = ex.get("maxMemory", 0)
+            mem_pct = (mem_used / mem_max * 100) if mem_max > 0 else 0
+            gc_ms = ex.get("totalGCTime", 0)
+            total_tasks = ex.get("totalTasks", 0)
+            total_dur_ms = ex.get("totalDuration", 0)
+            total_input = ex.get("totalInputBytes", 0)
+
+            flag = " ⚠ HIGH" if mem_pct > 80 else ""
+            lines.append(f"Executor {eid}:{flag}")
+            lines.append(f"  Spark storage:    {format_bytes(mem_used)} / {format_bytes(mem_max)} ({mem_pct:.1f}%)")
+            lines.append(f"  GC time:          {format_duration(gc_ms)}")
+            lines.append(f"  Tasks completed:  {total_tasks:,}")
+            lines.append(f"  Task time:        {format_duration(total_dur_ms)}")
+            lines.append(f"  Total input:      {format_bytes(total_input)}")
+
+            mm = ex.get("memoryMetrics", {})
+            if mm:
+                on_heap = mm.get("usedOnHeapStorageMemory", 0)
+                on_heap_total = mm.get("totalOnHeapStorageMemory", 0)
+                off_heap = mm.get("usedOffHeapStorageMemory", 0)
+                off_heap_total = mm.get("totalOffHeapStorageMemory", 0)
+                lines.append(f"  On-heap storage:  {format_bytes(on_heap)} / {format_bytes(on_heap_total)}")
+                lines.append(f"  Off-heap storage: {format_bytes(off_heap)} / {format_bytes(off_heap_total)}")
+
+            peak = ex.get("peakMemoryMetrics", {})
+            if peak:
+                lines.append(f"  --- Peak Memory ---")
+                jvm_heap = peak.get("JVMHeapMemory", 0)
+                jvm_offheap = peak.get("JVMOffHeapMemory", 0)
+                python_rss = peak.get("PythonWorkerUsedMemory", 0)
+                direct = peak.get("DirectPoolMemory", 0)
+                mapped = peak.get("MappedPoolMemory", 0)
+                jvm_rss = peak.get("ProcessTreeJVMRSSMemory", 0)
+                py_rss = peak.get("ProcessTreePythonRSSMemory", 0)
+                other_rss = peak.get("ProcessTreeOtherRSSMemory", 0)
+
+                lines.append(f"  JVM heap peak:    {format_bytes(jvm_heap)}")
+                lines.append(f"  JVM off-heap:     {format_bytes(jvm_offheap)}")
+                lines.append(f"  Python worker:    {format_bytes(python_rss)}")
+                lines.append(f"  Direct memory:    {format_bytes(direct)}")
+                lines.append(f"  Mapped pool:      {format_bytes(mapped)}")
+                if jvm_rss or py_rss or other_rss:
+                    lines.append(f"  Process tree RSS: JVM={format_bytes(jvm_rss)} Python={format_bytes(py_rss)} Other={format_bytes(other_rss)}")
+
+                # OOM risk assessment
+                if mem_max > 0 and jvm_heap > 0:
+                    heap_vs_alloc = jvm_heap / mem_max * 100
+                    if heap_vs_alloc > 90:
+                        lines.append(f"  🔴 CRITICAL: JVM heap peak is {heap_vs_alloc:.0f}% of allocated — OOM imminent")
+                    elif heap_vs_alloc > 75:
+                        lines.append(f"  🟡 WARNING: JVM heap peak is {heap_vs_alloc:.0f}% of allocated — OOM risk on long-running jobs")
+
+            lines.append("")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
     def get_spark_executors(cluster_id: str) -> str:
         """Executor resource stats: memory, disk, task counts, shuffle totals. Only works on RUNNING clusters."""
         err = assert_cluster_running(cluster_id)

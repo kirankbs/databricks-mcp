@@ -242,20 +242,32 @@ def register(mcp: FastMCP) -> None:
         action: str | None = None,
         service: str | None = None,
         hours_back: float = 24.0,
+        time_start: str | None = None,
+        time_end: str | None = None,
+        status_code_gte: int | None = None,
+        errors_only: bool = False,
         limit: int = 50,
         warehouse_id: str | None = None,
     ) -> str:
         """Security and access audit log from system.access.audit — who did what, when.
 
         Filter by user, action (e.g. 'changePermissions', 'deleteCluster'), or service
-        (e.g. 'clusters', 'jobs', 'unityCatalog'). Useful for forensics: "who changed
-        this cluster config?" or "what API calls preceded the failure?"
+        (e.g. 'clusters', 'jobs', 'unityCatalog'). For forensics around a specific
+        incident, use time_start/time_end (ISO 8601 UTC, e.g. '2026-03-28T17:14:00')
+        instead of hours_back. Use errors_only=true or status_code_gte=400 to find failures.
         """
-        hours_back = min(float(hours_back), 720.0)
         limit = min(int(limit), 200)
         params: list[StatementParameterListItem] = []
 
-        conditions = [f"event_time >= current_timestamp() - INTERVAL {int(hours_back)} HOUR"]
+        if time_start and time_end:
+            conditions = [
+                f"event_time >= '{time_start}'",
+                f"event_time <= '{time_end}'",
+            ]
+        else:
+            hours_back = min(float(hours_back), 720.0)
+            conditions = [f"event_time >= current_timestamp() - INTERVAL {int(hours_back)} HOUR"]
+
         if user:
             conditions.append("user_identity.email ILIKE :user_filter")
             params.append(StatementParameterListItem(name="user_filter", value=f"%{user}%"))
@@ -265,6 +277,10 @@ def register(mcp: FastMCP) -> None:
         if service:
             conditions.append("service_name ILIKE :service_filter")
             params.append(StatementParameterListItem(name="service_filter", value=f"%{service}%"))
+        if errors_only:
+            conditions.append("response.error_message IS NOT NULL AND response.error_message != ''")
+        if status_code_gte:
+            conditions.append(f"response.status_code >= {int(status_code_gte)}")
 
         where = " AND ".join(conditions)
 
@@ -274,12 +290,13 @@ def register(mcp: FastMCP) -> None:
             user_identity.email AS user_email,
             service_name,
             action_name,
-            request_params,
+            request_params.full_name_arg AS table_name,
             response.status_code AS status_code,
+            response.error_message AS error_message,
             source_ip_address
         FROM system.access.audit
         WHERE {where}
-        ORDER BY event_time DESC
+        ORDER BY event_time
         LIMIT {limit}
         """
 
@@ -291,17 +308,114 @@ def register(mcp: FastMCP) -> None:
         if not rows:
             return "No audit events found matching criteria."
 
-        lines = [f"Audit log ({len(rows)} events, last {hours_back}h):\n"]
-        lines.append(f"{'Time':<22} {'User':<30} {'Service':<18} {'Action':<30} {'Status'}")
-        lines.append("-" * 110)
+        has_errors = any(row.get("error_message") for row in rows)
+
+        lines = [f"Audit log ({len(rows)} events):\n"]
+        if has_errors:
+            lines.append(f"{'Time':<26} {'Service':<18} {'Action':<30} {'Table/Resource':<45} {'Status':<6} Error")
+            lines.append("-" * 140)
+        else:
+            lines.append(f"{'Time':<26} {'Service':<18} {'Action':<30} {'Table/Resource':<45} {'Status'}")
+            lines.append("-" * 125)
 
         for row in rows:
-            ts = str(row.get("event_time", "?"))[:21]
-            email = (row.get("user_email") or "?")[:29]
+            ts = str(row.get("event_time", "?"))[:25]
             svc = (row.get("service_name") or "?")[:17]
             act = (row.get("action_name") or "?")[:29]
+            table = (row.get("table_name") or "")[:44]
             status = str(row.get("status_code") or "?")
-            lines.append(f"{ts:<22} {email:<30} {svc:<18} {act:<30} {status}")
+            error = (row.get("error_message") or "")[:60]
+            if has_errors:
+                lines.append(f"{ts:<26} {svc:<18} {act:<30} {table:<45} {status:<6} {error}")
+            else:
+                lines.append(f"{ts:<26} {svc:<18} {act:<30} {table:<45} {status}")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    def get_workspace_failures(
+        time_start: str | None = None,
+        time_end: str | None = None,
+        hours_back: float = 1.0,
+        warehouse_id: str | None = None,
+    ) -> str:
+        """All job failures and service errors in a time window — for correlating
+        simultaneous failures across jobs.
+
+        Returns failed jobs (with job name, run ID, task key) and any service errors
+        (UC 504s, etc.) in the same window. Use time_start/time_end (ISO 8601 UTC)
+        for precise incident forensics, or hours_back for recent overview.
+        """
+        if time_start and time_end:
+            time_cond = f"event_time >= '{time_start}' AND event_time <= '{time_end}'"
+        else:
+            hours_back = min(float(hours_back), 48.0)
+            time_cond = f"event_time >= current_timestamp() - INTERVAL {int(hours_back * 60)} MINUTE"
+
+        query = f"""
+        WITH errors AS (
+            SELECT
+                event_time,
+                service_name,
+                action_name,
+                request_params.full_name_arg AS table_name,
+                request_params.jobId AS job_id,
+                request_params.runId AS run_id,
+                request_params.taskKey AS task_key,
+                response.status_code AS status_code,
+                response.error_message AS error_message
+            FROM system.access.audit
+            WHERE {time_cond}
+              AND (
+                  (action_name = 'runFailed')
+                  OR (response.status_code >= 400 AND service_name != 'secrets')
+              )
+        )
+        SELECT * FROM errors ORDER BY event_time LIMIT 100
+        """
+
+        try:
+            rows = execute_sql(query, warehouse_id=warehouse_id)
+        except Exception as e:
+            return f"Failed to query workspace failures: {e}"
+
+        if not rows:
+            return "No failures found in the specified window."
+
+        # Separate job failures from service errors
+        job_failures = [r for r in rows if r.get("action_name") == "runFailed"]
+        service_errors = [r for r in rows if r.get("action_name") != "runFailed" and int(r.get("status_code") or 0) >= 400]
+
+        lines = []
+
+        if service_errors:
+            lines.append(f"Service Errors ({len(service_errors)}):\n")
+            lines.append(f"{'Time':<26} {'Service':<18} {'Action':<32} {'Table/Resource':<45} {'Status':<6} Error")
+            lines.append("-" * 145)
+            for row in service_errors:
+                ts = str(row.get("event_time", "?"))[:25]
+                svc = (row.get("service_name") or "?")[:17]
+                act = (row.get("action_name") or "?")[:31]
+                table = (row.get("table_name") or "")[:44]
+                status = str(row.get("status_code") or "?")
+                error = (row.get("error_message") or "")[:60]
+                lines.append(f"{ts:<26} {svc:<18} {act:<32} {table:<45} {status:<6} {error}")
+            lines.append("")
+
+        if job_failures:
+            lines.append(f"Job Failures ({len(job_failures)}):\n")
+            lines.append(f"{'Time':<26} {'Job ID':<18} {'Run ID':<18} {'Task':<20} Error")
+            lines.append("-" * 120)
+            for row in job_failures:
+                ts = str(row.get("event_time", "?"))[:25]
+                jid = str(row.get("job_id") or "?")[:17]
+                rid = str(row.get("run_id") or "?")[:17]
+                task = str(row.get("task_key") or "?")[:19]
+                error = (row.get("error_message") or "")[:60]
+                lines.append(f"{ts:<26} {jid:<18} {rid:<18} {task:<20} {error}")
+
+        if not lines:
+            return "No failures found in the specified window."
 
         return "\n".join(lines)
 
