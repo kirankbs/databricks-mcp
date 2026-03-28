@@ -24,6 +24,7 @@ def test_all_tools_registered():
         "get_spark_jobs",
         "get_streaming_queries",
         "get_streaming_query_progress",
+        "get_executor_memory",
         # Spark Analysis
         "analyze_stage_skew",
         "get_spark_config",
@@ -37,6 +38,7 @@ def test_all_tools_registered():
         "get_query_history",
         "get_cluster_utilization",
         "get_audit_events",
+        "get_workspace_failures",
         # Lineage
         "get_table_lineage",
         "get_column_lineage",
@@ -53,7 +55,7 @@ def test_all_tools_registered():
 
 def test_tool_count():
     from databricks_debug_mcp.server import mcp
-    assert len(mcp._tool_manager._tools) == 30
+    assert len(mcp._tool_manager._tools) == 32
 
 
 def test_all_tools_have_descriptions():

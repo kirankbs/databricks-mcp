@@ -127,8 +127,9 @@ class TestGetAuditEvents:
                 "user_email": "admin@company.com",
                 "service_name": "clusters",
                 "action_name": "delete",
-                "request_params": "{}",
+                "table_name": None,
                 "status_code": "200",
+                "error_message": None,
                 "source_ip_address": "10.0.0.1",
             }
         ]
@@ -136,9 +137,9 @@ class TestGetAuditEvents:
         register(mcp)
         tool = mcp._tool_manager._tools["get_audit_events"]
         result = tool.fn()
-        assert "admin@company.com" in result
         assert "clusters" in result
         assert "delete" in result
+        assert "200" in result
 
 
 class TestGetClusterUtilization:
