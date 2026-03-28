@@ -1,25 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
-from ..client import get_workspace_client, spark_ui_request, get_spark_app_id
-from ..formatting import format_duration, format_bytes, enum_val
-
-_CLUSTER_TERMINATED_MSG = (
-    "Cluster {cluster_id} is not RUNNING — Spark UI data is unavailable for terminated clusters.\n"
-    "Alternatives:\n"
-    "  - get_run_details: task timings and statuses\n"
-    "  - get_driver_logs: driver log content\n"
-    "  - get_cluster_events: infrastructure events (DRIVER_NOT_RESPONDING, etc.)"
-)
-
-
-def _assert_running(cluster_id: str) -> str | None:
-    """Return an error string if the cluster is not RUNNING, else None."""
-    w = get_workspace_client()
-    cluster = w.clusters.get(cluster_id=cluster_id)
-    state = enum_val(cluster.state)
-    if state != "RUNNING":
-        return _CLUSTER_TERMINATED_MSG.format(cluster_id=cluster_id)
-    return None
+from ..client import spark_ui_request, get_spark_app_id, assert_cluster_running
+from ..formatting import format_duration, format_bytes
 
 
 def register(mcp: FastMCP) -> None:
@@ -36,7 +18,7 @@ def register(mcp: FastMCP) -> None:
         sort_by: duration | shuffleRead | shuffleWrite | input | output
         status: ACTIVE | COMPLETE | FAILED (omit for all)
         """
-        err = _assert_running(cluster_id)
+        err = assert_cluster_running(cluster_id)
         if err:
             return err
 
@@ -78,7 +60,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     def get_spark_executors(cluster_id: str) -> str:
         """Executor resource stats: memory, disk, task counts, shuffle totals. Only works on RUNNING clusters."""
-        err = _assert_running(cluster_id)
+        err = assert_cluster_running(cluster_id)
         if err:
             return err
 
@@ -133,7 +115,7 @@ def register(mcp: FastMCP) -> None:
 
         If query_id is provided, includes the full physical plan.
         """
-        err = _assert_running(cluster_id)
+        err = assert_cluster_running(cluster_id)
         if err:
             return err
 
@@ -182,7 +164,7 @@ def register(mcp: FastMCP) -> None:
 
         status: RUNNING | SUCCEEDED | FAILED (omit for all)
         """
-        err = _assert_running(cluster_id)
+        err = assert_cluster_running(cluster_id)
         if err:
             return err
 
@@ -213,7 +195,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     def get_streaming_queries(cluster_id: str) -> str:
         """List active streaming queries with latest progress. Only works on RUNNING clusters."""
-        err = _assert_running(cluster_id)
+        err = assert_cluster_running(cluster_id)
         if err:
             return err
 
@@ -232,7 +214,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     def get_streaming_query_progress(cluster_id: str, query_id: str) -> str:
         """Detailed batch-level progress for a specific streaming query. Only works on RUNNING clusters."""
-        err = _assert_running(cluster_id)
+        err = assert_cluster_running(cluster_id)
         if err:
             return err
 

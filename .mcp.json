@@ -3,7 +3,8 @@
     "databricks-debug": {
       "command": "databricks-debug-mcp",
       "env": {
-        "DATABRICKS_CONFIG_PROFILE": "DEFAULT"
+        "DATABRICKS_CONFIG_PROFILE": "DEFAULT",
+        "DATABRICKS_WAREHOUSE_ID": ""
       }
     }
   }
