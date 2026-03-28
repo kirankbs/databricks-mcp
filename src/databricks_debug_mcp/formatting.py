@@ -61,7 +61,7 @@ def deduplicate_events(events: list[dict[str, Any]], type_key: str = "type") -> 
     run_start = 0
     for i in range(1, len(events) + 1):
         at_end = i == len(events)
-        same_type = not at_end and events[i][type_key] == events[run_start][type_key]
+        same_type = not at_end and events[i].get(type_key) == events[run_start].get(type_key)
         if not same_type:
             count = i - run_start
             if count == 1:

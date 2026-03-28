@@ -7,9 +7,10 @@ from databricks.sdk.service.sql import StatementParameterListItem
 
 from .client import get_workspace_client
 from .config import get_config
+from .formatting import enum_val
 
 
-_IDENTIFIER_RE = re.compile(r"^[\w]+(?:\.[\w]+)*$")
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$")
 
 
 def validate_identifier(name: str) -> str:
@@ -48,10 +49,9 @@ def execute_sql(
 
     resp = w.statement_execution.execute_statement(**kwargs)
 
-    # Poll if still running
     deadline = time.time() + 120
     while resp.status and resp.status.state:
-        state_val = resp.status.state.value if hasattr(resp.status.state, "value") else str(resp.status.state)
+        state_val = enum_val(resp.status.state)
         if state_val not in ("PENDING", "RUNNING"):
             break
         if time.time() > deadline:
@@ -60,14 +60,13 @@ def execute_sql(
         resp = w.statement_execution.get_statement(statement_id=resp.statement_id)
 
     if resp.status and resp.status.state:
-        state_val = resp.status.state.value if hasattr(resp.status.state, "value") else str(resp.status.state)
+        state_val = enum_val(resp.status.state)
         if state_val == "FAILED":
             error_msg = ""
             if resp.status.error:
                 error_msg = resp.status.error.message or str(resp.status.error)
             raise RuntimeError(f"SQL statement failed: {error_msg}")
 
-    # Parse result into list of dicts
     columns = [col.name for col in resp.manifest.schema.columns] if resp.manifest and resp.manifest.schema else []
     rows = []
     if resp.result and resp.result.data_array:

@@ -1,7 +1,11 @@
+import re
+
 from mcp.server.fastmcp import FastMCP
 
 from ..client import get_workspace_client
 from ..formatting import format_duration, enum_val
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
 
 def register(mcp: FastMCP) -> None:
@@ -86,15 +90,17 @@ def register(mcp: FastMCP) -> None:
 
         try:
             events = []
+            inspected = 0
             for event in w.pipelines.list_pipeline_events(
                 pipeline_id=pipeline_id,
                 order_by=["timestamp DESC"],
-                max_results=limit * 3,  # fetch extra to filter
+                max_results=limit * 3,
             ):
+                inspected += 1
                 level = event.level or ""
                 if level.upper() in ("ERROR", "WARN"):
                     events.append(event)
-                if len(events) >= limit:
+                if len(events) >= limit or inspected >= limit * 10:
                     break
         except Exception as e:
             return f"Failed to get pipeline events: {e}"
@@ -136,6 +142,9 @@ def register(mcp: FastMCP) -> None:
         Shows which data quality rules are failing and how many rows are affected.
         """
         from ..sql import execute_sql
+
+        if not _UUID_RE.match(pipeline_id):
+            return f"Invalid pipeline_id format: {pipeline_id!r}. Expected UUID."
 
         query = f"""
         SELECT

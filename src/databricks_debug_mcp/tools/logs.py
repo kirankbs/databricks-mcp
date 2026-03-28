@@ -80,7 +80,8 @@ def register(mcp: FastMCP) -> None:
             lines = lines[-tail_lines:]
 
         if search_pattern:
-            return _search_in_lines(lines, search_pattern, log_type, log_path)
+            _, result = _search_in_lines(lines, search_pattern, log_type, log_path)
+            return result
 
         highlighted = []
         for line in lines:
@@ -133,8 +134,8 @@ def register(mcp: FastMCP) -> None:
             except Exception:
                 continue
 
-            result = _search_in_lines(lines, pattern, log_type, log_path, context=context_lines)
-            if "not found" not in result.lower():
+            found, result = _search_in_lines(lines, pattern, log_type, log_path, context=context_lines)
+            if found:
                 sections.append(result)
 
         if not sections:
@@ -143,15 +144,18 @@ def register(mcp: FastMCP) -> None:
         return "\n\n".join(sections)
 
 
-def _search_in_lines(lines: list[str], pattern: str, log_type: str, log_path: str, context: int = 2) -> str:
+def _search_in_lines(lines: list[str], pattern: str, log_type: str, log_path: str, context: int = 2) -> tuple[bool, str]:
+    """Search lines for pattern. Returns (found, result_text)."""
+    if len(pattern) > 200:
+        return False, "Pattern too long (max 200 chars)."
     try:
         rx = re.compile(pattern, re.IGNORECASE)
     except re.error as e:
-        return f"Invalid regex pattern '{pattern}': {e}"
+        return False, f"Invalid regex pattern '{pattern}': {e}"
 
     match_indices = [i for i, line in enumerate(lines) if rx.search(line)]
     if not match_indices:
-        return f"Pattern '{pattern}' not found in {log_type} (searched {len(lines)} lines of {log_path})."
+        return False, f"Pattern '{pattern}' not found in {log_type} (searched {len(lines)} lines of {log_path})."
 
     include: set[int] = set()
     for idx in match_indices:
@@ -169,4 +173,4 @@ def _search_in_lines(lines: list[str], pattern: str, log_type: str, log_path: st
         prev = idx
 
     header = f"Pattern '{pattern}' in {log_type} — {len(match_indices)} match(es):\nFile: {log_path}\n"
-    return header + "\n".join(output_lines)
+    return True, header + "\n".join(output_lines)

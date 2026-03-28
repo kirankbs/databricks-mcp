@@ -38,13 +38,18 @@ def register(mcp: FastMCP) -> None:
         spill_stages = []
         all_analyses = []
 
-        for stage in stages:
+        # Pre-filter: only fetch task summaries for stages worth analyzing
+        # (enough tasks and non-trivial duration) to avoid N+1 API calls
+        candidate_stages = [
+            s for s in stages
+            if s.get("numTasks", 0) >= 2 and s.get("executorRunTime", 0) > 1000
+        ]
+        # Cap at 30 stages to avoid excessive API calls
+        candidate_stages = sorted(candidate_stages, key=lambda s: s.get("executorRunTime", 0), reverse=True)[:30]
+
+        for stage in candidate_stages:
             sid = stage.get("stageId")
             attempt = stage.get("attemptId", 0)
-            num_tasks = stage.get("numTasks", 0)
-
-            if num_tasks < 2:
-                continue
 
             try:
                 summary = spark_ui_request(
@@ -263,17 +268,34 @@ def _check_config_antipatterns(spark_props: list) -> list[str]:
     if props.get("spark.sql.adaptive.enabled", "true").lower() == "false":
         issues.append("AQE (Adaptive Query Execution) is DISABLED -- enable for automatic shuffle partition coalescing and join optimization")
 
-    shuffle_parts = int(props.get("spark.sql.shuffle.partitions", "200"))
-    if shuffle_parts <= 10:
-        issues.append(f"spark.sql.shuffle.partitions={shuffle_parts} -- very low, may cause OOM on large shuffles")
+    try:
+        shuffle_parts = int(props.get("spark.sql.shuffle.partitions", "200"))
+        if shuffle_parts <= 10:
+            issues.append(f"spark.sql.shuffle.partitions={shuffle_parts} -- very low, may cause OOM on large shuffles")
+    except ValueError:
+        pass
 
-    broadcast_mb = int(props.get("spark.sql.autoBroadcastJoinThreshold", "10485760"))
-    if broadcast_mb > 1024 * 1024 * 1024:
-        issues.append(f"autoBroadcastJoinThreshold is {format_bytes(broadcast_mb)} -- driver OOM risk from broadcasting large tables")
+    try:
+        broadcast_mb = int(props.get("spark.sql.autoBroadcastJoinThreshold", "10485760"))
+        if broadcast_mb > 1024 * 1024 * 1024:
+            issues.append(f"autoBroadcastJoinThreshold is {format_bytes(broadcast_mb)} -- driver OOM risk from broadcasting large tables")
+    except ValueError:
+        pass
 
-    overhead = props.get("spark.executor.memoryOverhead")
-    if overhead and overhead.endswith("m") and int(overhead[:-1]) < 512:
-        issues.append(f"spark.executor.memoryOverhead={overhead} -- may be too low for PySpark workloads (recommended: >=1g)")
+    overhead = props.get("spark.executor.memoryOverhead", "")
+    try:
+        if overhead.endswith("g"):
+            overhead_mb = int(overhead[:-1]) * 1024
+        elif overhead.endswith("m"):
+            overhead_mb = int(overhead[:-1])
+        elif overhead.isdigit():
+            overhead_mb = int(overhead)
+        else:
+            overhead_mb = None
+        if overhead_mb is not None and overhead_mb < 512:
+            issues.append(f"spark.executor.memoryOverhead={overhead} -- may be too low for PySpark workloads (recommended: >=1g)")
+    except ValueError:
+        pass
 
     if props.get("spark.dynamicAllocation.enabled", "false").lower() == "false":
         issues.append("Dynamic allocation is disabled -- cluster won't scale down during idle periods")

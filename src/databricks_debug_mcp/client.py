@@ -49,7 +49,10 @@ def assert_cluster_running(cluster_id: str) -> str | None:
     """Return an error string if the cluster is not RUNNING, else None."""
     from .formatting import enum_val
     w = get_workspace_client()
-    cluster = w.clusters.get(cluster_id=cluster_id)
+    try:
+        cluster = w.clusters.get(cluster_id=cluster_id)
+    except Exception as e:
+        return f"Failed to get cluster {cluster_id}: {e}"
     state = enum_val(cluster.state)
     if state != "RUNNING":
         return _CLUSTER_TERMINATED_MSG.format(cluster_id=cluster_id)
