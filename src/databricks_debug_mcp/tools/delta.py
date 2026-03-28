@@ -111,7 +111,7 @@ def register(mcp: FastMCP) -> None:
                     for p in pred_rows:
                         lines.append(f"  {p.get('operation_type')} @ {p.get('start_time')} -- {p.get('usage_quantity', '?')} DBUs")
             except Exception:
-                pass
+                lines.append("\nPredictive optimization: (system table not available)")
 
         if issues:
             lines.append(f"\n{'='*60}")

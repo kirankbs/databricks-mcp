@@ -31,9 +31,7 @@ def register(mcp: FastMCP) -> None:
             return "Provide either job_name or job_id."
 
         runs = []
-        # Fetch more than needed to allow client-side status filtering
-        fetch_limit = limit * 5 if status_filter else limit
-        for run in w.jobs.list_runs(job_id=job_id, expand_tasks=True, completed_only=True if status_filter else False):
+        for run in w.jobs.list_runs(job_id=job_id, expand_tasks=False, completed_only=True if status_filter else False):
             if status_filter:
                 result_state = enum_val(run.state.result_state if run.state else None)
                 if result_state != status_filter:
@@ -185,8 +183,7 @@ def register(mcp: FastMCP) -> None:
         for task in tasks:
             if task.cluster_instance and task.cluster_instance.cluster_id:
                 cluster_id = task.cluster_instance.cluster_id
-                # new_cluster on task means it's a task-level ephemeral cluster
-                is_job_cluster = task.new_cluster is not None
+                is_job_cluster = task.new_cluster is not None or getattr(task, "job_cluster_key", None) is not None
                 cluster_map[task.task_key] = {
                     "cluster_id": cluster_id,
                     "is_job_cluster": is_job_cluster,

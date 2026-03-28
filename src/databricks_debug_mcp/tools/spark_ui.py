@@ -1,7 +1,12 @@
+from urllib.parse import quote
+
 from mcp.server.fastmcp import FastMCP
 
 from ..client import spark_ui_request, get_spark_app_id, assert_cluster_running
 from ..formatting import format_duration, format_bytes
+
+_VALID_STAGE_STATUS = {"ACTIVE", "COMPLETE", "FAILED"}
+_VALID_JOB_STATUS = {"RUNNING", "SUCCEEDED", "FAILED"}
 
 
 def register(mcp: FastMCP) -> None:
@@ -26,7 +31,9 @@ def register(mcp: FastMCP) -> None:
             app_id = get_spark_app_id(cluster_id)
             path = f"applications/{app_id}/stages"
             if status:
-                path += f"?status={status}"
+                if status.upper() not in _VALID_STAGE_STATUS:
+                    return f"Invalid status '{status}'. Valid: {', '.join(sorted(_VALID_STAGE_STATUS))}"
+                path += f"?status={quote(status)}"
             stages = spark_ui_request(cluster_id, path)
         except Exception as e:
             return f"Failed to fetch Spark stages: {e}"
@@ -172,7 +179,9 @@ def register(mcp: FastMCP) -> None:
             app_id = get_spark_app_id(cluster_id)
             path = f"applications/{app_id}/jobs"
             if status:
-                path += f"?status={status}"
+                if status.upper() not in _VALID_JOB_STATUS:
+                    return f"Invalid status '{status}'. Valid: {', '.join(sorted(_VALID_JOB_STATUS))}"
+                path += f"?status={quote(status)}"
             jobs = spark_ui_request(cluster_id, path)
         except Exception as e:
             return f"Failed to fetch Spark jobs: {e}"
@@ -220,7 +229,7 @@ def register(mcp: FastMCP) -> None:
 
         try:
             app_id = get_spark_app_id(cluster_id)
-            data = spark_ui_request(cluster_id, f"applications/{app_id}/streaming/statistics/{query_id}")
+            data = spark_ui_request(cluster_id, f"applications/{app_id}/streaming/statistics/{quote(query_id)}")
         except Exception as e:
             return f"Failed to fetch streaming query progress: {e}"
 

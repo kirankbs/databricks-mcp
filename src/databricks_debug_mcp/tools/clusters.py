@@ -3,7 +3,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from ..client import get_workspace_client
-from ..formatting import enum_val, format_bytes, ms_to_str
+from ..formatting import enum_val, format_bytes, ms_to_str, deduplicate_events
 
 
 def register(mcp: FastMCP) -> None:
@@ -94,9 +94,13 @@ def register(mcp: FastMCP) -> None:
             suffix = f" of type {event_types}" if event_types else ""
             return f"No cluster events{suffix} for {cluster_id} in the last {hours_back}h."
 
-        # Reverse to chronological (oldest first) and deduplicate runs
         chronological = list(reversed(raw_events))
-        deduped = _dedup_cluster_events(chronological)
+        dicts = []
+        for ev in chronological:
+            et = enum_val(ev.type)
+            details = _event_details(ev)
+            dicts.append({"timestamp": ev.timestamp, "type": et, "_details": details})
+        deduped = deduplicate_events(dicts, type_key="type")
 
         lines = [f"Cluster {cluster_id} — events (last {hours_back}h, {len(raw_events)} raw → {len(deduped)} shown):\n"]
         lines.append(f"{'Timestamp (UTC)':<22} {'Type':<32} {'Details'}")
@@ -117,32 +121,6 @@ def register(mcp: FastMCP) -> None:
 
         return "\n".join(lines)
 
-
-def _dedup_cluster_events(events) -> list[dict]:
-    """Convert SDK event objects to dicts and collapse consecutive identical types."""
-    dicts = []
-    for ev in events:
-        et = enum_val(ev.type)
-        details = _event_details(ev)
-        dicts.append({"timestamp": ev.timestamp, "type": et, "_details": details})
-
-    result: list[dict] = []
-    run_start = 0
-    for i in range(1, len(dicts) + 1):
-        at_end = i == len(dicts)
-        same = not at_end and dicts[i]["type"] == dicts[run_start]["type"]
-        if not same:
-            count = i - run_start
-            if count == 1:
-                result.append(dicts[run_start])
-            else:
-                summary = dict(dicts[run_start])
-                summary["_repeated"] = count
-                summary["_first_timestamp"] = dicts[run_start]["timestamp"]
-                summary["_last_timestamp"] = dicts[i - 1]["timestamp"]
-                result.append(summary)
-            run_start = i
-    return result
 
 
 def _event_details(ev) -> str:

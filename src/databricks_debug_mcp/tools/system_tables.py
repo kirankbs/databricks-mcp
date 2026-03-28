@@ -199,6 +199,7 @@ def register(mcp: FastMCP) -> None:
         WHERE cluster_id = :cluster_id
             AND start_time >= current_timestamp() - INTERVAL {int(hours_back)} HOUR
         ORDER BY start_time
+        LIMIT 1000
         """
 
         try:
