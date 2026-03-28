@@ -34,3 +34,23 @@ def get_spark_app_id(cluster_id: str) -> str:
     if not data:
         raise ValueError(f"No Spark applications found for cluster {cluster_id}")
     return data[0]["id"]
+
+
+_CLUSTER_TERMINATED_MSG = (
+    "Cluster {cluster_id} is not RUNNING -- Spark UI data is unavailable for terminated clusters.\n"
+    "Alternatives:\n"
+    "  - get_run_details: task timings and statuses\n"
+    "  - get_driver_logs: driver log content\n"
+    "  - get_cluster_events: infrastructure events (DRIVER_NOT_RESPONDING, etc.)"
+)
+
+
+def assert_cluster_running(cluster_id: str) -> str | None:
+    """Return an error string if the cluster is not RUNNING, else None."""
+    from .formatting import enum_val
+    w = get_workspace_client()
+    cluster = w.clusters.get(cluster_id=cluster_id)
+    state = enum_val(cluster.state)
+    if state != "RUNNING":
+        return _CLUSTER_TERMINATED_MSG.format(cluster_id=cluster_id)
+    return None
