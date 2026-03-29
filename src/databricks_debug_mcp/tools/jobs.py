@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from ..client import get_workspace_client
-from ..formatting import format_duration, ms_to_str, truncate_stacktrace, enum_val
+from ..formatting import enum_val, format_duration, ms_to_str, truncate_stacktrace
 
 
 def register(mcp: FastMCP) -> None:
@@ -129,10 +129,7 @@ def register(mcp: FastMCP) -> None:
             if not targets:
                 return f"Task '{task_key}' not found in run {run_id}. Available: {[t.task_key for t in tasks]}"
         else:
-            failed = [
-                t for t in tasks
-                if t.state and enum_val(t.state.result_state) in ("FAILED", "TIMED_OUT")
-            ]
+            failed = [t for t in tasks if t.state and enum_val(t.state.result_state) in ("FAILED", "TIMED_OUT")]
             targets = failed if failed else (tasks[:1] if tasks else [])
 
         if not targets:

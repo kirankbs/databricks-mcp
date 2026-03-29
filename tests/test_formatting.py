@@ -1,12 +1,12 @@
 """Tests for formatting utilities."""
 
 from databricks_debug_mcp.formatting import (
-    format_duration,
+    deduplicate_events,
+    enum_val,
     format_bytes,
+    format_duration,
     ms_to_str,
     truncate_stacktrace,
-    enum_val,
-    deduplicate_events,
 )
 
 
@@ -88,6 +88,7 @@ class TestEnumVal:
     def test_enum_like(self):
         class FakeEnum:
             value = "SUCCESS"
+
         assert enum_val(FakeEnum()) == "SUCCESS"
 
     def test_fallback(self):

@@ -9,3 +9,8 @@ venv/
 *.egg
 .claude/
 .mcp.json
+
+# Testing
+.coverage
+coverage.xml
+htmlcov/

@@ -1,6 +1,7 @@
 """Tests for SQL execution client."""
 
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from databricks_debug_mcp.sql import execute_sql

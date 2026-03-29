@@ -1,14 +1,14 @@
 """Tests for system tables tools."""
 
 from unittest.mock import patch
-import pytest
 
 
 class TestGetJobCost:
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_no_criteria(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mcp = FastMCP("test")
         register(mcp)
@@ -19,11 +19,19 @@ class TestGetJobCost:
 
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_by_run_id(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
 
+        from databricks_debug_mcp.tools.system_tables import register
+
         mock_sql.return_value = [
-            {"job_id": "123", "run_id": "456", "sku_name": "JOBS_COMPUTE", "usage_date": "2024-01-15", "total_dbu": "10.5", "estimated_cost_usd": "5.25"}
+            {
+                "job_id": "123",
+                "run_id": "456",
+                "sku_name": "JOBS_COMPUTE",
+                "usage_date": "2024-01-15",
+                "total_dbu": "10.5",
+                "estimated_cost_usd": "5.25",
+            }
         ]
         mcp = FastMCP("test")
         register(mcp)
@@ -35,8 +43,9 @@ class TestGetJobCost:
 
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_no_billing_data(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.return_value = []
         mcp = FastMCP("test")
@@ -47,8 +56,9 @@ class TestGetJobCost:
 
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_sql_error(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.side_effect = RuntimeError("Access denied")
         mcp = FastMCP("test")
@@ -61,8 +71,9 @@ class TestGetJobCost:
 class TestGetQueryHistory:
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_basic_query(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.return_value = [
             {
@@ -89,8 +100,9 @@ class TestGetQueryHistory:
 
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_error_only(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.return_value = [
             {
@@ -118,8 +130,9 @@ class TestGetQueryHistory:
 class TestGetAuditEvents:
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_basic(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.return_value = [
             {
@@ -145,8 +158,9 @@ class TestGetAuditEvents:
 class TestGetClusterUtilization:
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_basic(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.return_value = [
             {
@@ -178,8 +192,9 @@ class TestGetClusterUtilization:
 
     @patch("databricks_debug_mcp.tools.system_tables.execute_sql")
     def test_no_data(self, mock_sql):
-        from databricks_debug_mcp.tools.system_tables import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.system_tables import register
 
         mock_sql.return_value = []
         mcp = FastMCP("test")

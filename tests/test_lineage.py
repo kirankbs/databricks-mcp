@@ -6,14 +6,29 @@ from unittest.mock import patch
 class TestGetTableLineage:
     @patch("databricks_debug_mcp.tools.lineage.execute_sql")
     def test_both_directions(self, mock_sql):
-        from databricks_debug_mcp.tools.lineage import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.lineage import register
 
         mock_sql.side_effect = [
             # upstream
-            [{"source_table_full_name": "raw.events.clicks", "source_type": "TABLE", "entity_type": "JOB", "event_time": "2024-01-15"}],
+            [
+                {
+                    "source_table_full_name": "raw.events.clicks",
+                    "source_type": "TABLE",
+                    "entity_type": "JOB",
+                    "event_time": "2024-01-15",
+                }
+            ],
             # downstream
-            [{"target_table_full_name": "gold.analytics.daily_stats", "target_type": "TABLE", "entity_type": "NOTEBOOK", "event_time": "2024-01-15"}],
+            [
+                {
+                    "target_table_full_name": "gold.analytics.daily_stats",
+                    "target_type": "TABLE",
+                    "entity_type": "NOTEBOOK",
+                    "event_time": "2024-01-15",
+                }
+            ],
         ]
 
         mcp = FastMCP("test")
@@ -27,11 +42,17 @@ class TestGetTableLineage:
 
     @patch("databricks_debug_mcp.tools.lineage.execute_sql")
     def test_upstream_only(self, mock_sql):
-        from databricks_debug_mcp.tools.lineage import register
         from mcp.server.fastmcp import FastMCP
 
+        from databricks_debug_mcp.tools.lineage import register
+
         mock_sql.return_value = [
-            {"source_table_full_name": "raw.data.source", "source_type": "TABLE", "entity_type": "PIPELINE", "event_time": "2024-01-15"}
+            {
+                "source_table_full_name": "raw.data.source",
+                "source_type": "TABLE",
+                "entity_type": "PIPELINE",
+                "event_time": "2024-01-15",
+            }
         ]
 
         mcp = FastMCP("test")
@@ -43,8 +64,9 @@ class TestGetTableLineage:
 
     @patch("databricks_debug_mcp.tools.lineage.execute_sql")
     def test_no_lineage(self, mock_sql):
-        from databricks_debug_mcp.tools.lineage import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.lineage import register
 
         mock_sql.return_value = []
         mcp = FastMCP("test")
@@ -57,8 +79,9 @@ class TestGetTableLineage:
 class TestGetColumnLineage:
     @patch("databricks_debug_mcp.tools.lineage.execute_sql")
     def test_basic(self, mock_sql):
-        from databricks_debug_mcp.tools.lineage import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.lineage import register
 
         mock_sql.return_value = [
             {
@@ -80,8 +103,9 @@ class TestGetColumnLineage:
 
     @patch("databricks_debug_mcp.tools.lineage.execute_sql")
     def test_no_lineage(self, mock_sql):
-        from databricks_debug_mcp.tools.lineage import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.lineage import register
 
         mock_sql.return_value = []
         mcp = FastMCP("test")

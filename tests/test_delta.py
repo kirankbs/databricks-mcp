@@ -6,21 +6,24 @@ from unittest.mock import patch
 class TestGetTableHealth:
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_healthy_table(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.delta import register
 
         mock_sql.side_effect = [
             # DESCRIBE DETAIL
-            [{
-                "format": "delta",
-                "location": "abfss://container@storage.dfs.core.windows.net/table",
-                "numFiles": "100",
-                "sizeInBytes": str(100 * 128 * 1024 * 1024),  # 100 files * 128MB = healthy
-                "partitionColumns": "['date']",
-                "properties": "{'delta.autoOptimize.optimizeWrite': 'true'}",
-                "minReaderVersion": "1",
-                "minWriterVersion": "7",
-            }],
+            [
+                {
+                    "format": "delta",
+                    "location": "abfss://container@storage.dfs.core.windows.net/table",
+                    "numFiles": "100",
+                    "sizeInBytes": str(100 * 128 * 1024 * 1024),  # 100 files * 128MB = healthy
+                    "partitionColumns": "['date']",
+                    "properties": "{'delta.autoOptimize.optimizeWrite': 'true'}",
+                    "minReaderVersion": "1",
+                    "minWriterVersion": "7",
+                }
+            ],
             # DESCRIBE HISTORY
             [
                 {"operation": "OPTIMIZE", "timestamp": "2024-01-14", "userName": "system", "operationMetrics": {}},
@@ -43,21 +46,24 @@ class TestGetTableHealth:
 
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_small_files_detected(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.delta import register
 
         mock_sql.side_effect = [
             # DESCRIBE DETAIL - many small files
-            [{
-                "format": "delta",
-                "location": "abfss://container@storage/table",
-                "numFiles": "15000",
-                "sizeInBytes": str(15000 * 1024 * 1024),  # 15000 * 1MB = small files
-                "partitionColumns": "[]",
-                "properties": "{}",
-                "minReaderVersion": "1",
-                "minWriterVersion": "2",
-            }],
+            [
+                {
+                    "format": "delta",
+                    "location": "abfss://container@storage/table",
+                    "numFiles": "15000",
+                    "sizeInBytes": str(15000 * 1024 * 1024),  # 15000 * 1MB = small files
+                    "partitionColumns": "[]",
+                    "properties": "{}",
+                    "minReaderVersion": "1",
+                    "minWriterVersion": "2",
+                }
+            ],
             # DESCRIBE HISTORY - no optimize
             [{"operation": "WRITE", "timestamp": "2024-01-15", "userName": "etl", "operationMetrics": {}}],
             # Predictive optimization
@@ -75,8 +81,9 @@ class TestGetTableHealth:
 
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_table_not_found(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.delta import register
 
         mock_sql.side_effect = RuntimeError("Table not found")
         mcp = FastMCP("test")
@@ -89,8 +96,9 @@ class TestGetTableHealth:
 class TestGetTableHistory:
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_basic_history(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.delta import register
 
         mock_sql.return_value = [
             {
@@ -128,12 +136,25 @@ class TestGetTableHistory:
 
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_operation_filter(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
 
+        from databricks_debug_mcp.tools.delta import register
+
         mock_sql.return_value = [
-            {"version": "3", "timestamp": "2024-01-15", "operation": "OPTIMIZE", "userName": "sys", "operationMetrics": {"numFilesAdded": "1", "numFilesRemoved": "50"}},
-            {"version": "2", "timestamp": "2024-01-14", "operation": "WRITE", "userName": "etl", "operationMetrics": {}},
+            {
+                "version": "3",
+                "timestamp": "2024-01-15",
+                "operation": "OPTIMIZE",
+                "userName": "sys",
+                "operationMetrics": {"numFilesAdded": "1", "numFilesRemoved": "50"},
+            },
+            {
+                "version": "2",
+                "timestamp": "2024-01-14",
+                "operation": "WRITE",
+                "userName": "etl",
+                "operationMetrics": {},
+            },
         ]
 
         mcp = FastMCP("test")
@@ -145,12 +166,25 @@ class TestGetTableHistory:
 
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_schema_change_detection(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
 
+        from databricks_debug_mcp.tools.delta import register
+
         mock_sql.return_value = [
-            {"version": "6", "timestamp": "2024-01-16", "operation": "SET TBLPROPERTIES", "userName": "admin", "operationMetrics": {}},
-            {"version": "5", "timestamp": "2024-01-15", "operation": "WRITE", "userName": "etl", "operationMetrics": {}},
+            {
+                "version": "6",
+                "timestamp": "2024-01-16",
+                "operation": "SET TBLPROPERTIES",
+                "userName": "admin",
+                "operationMetrics": {},
+            },
+            {
+                "version": "5",
+                "timestamp": "2024-01-15",
+                "operation": "WRITE",
+                "userName": "etl",
+                "operationMetrics": {},
+            },
         ]
 
         mcp = FastMCP("test")
@@ -163,8 +197,9 @@ class TestGetTableHistory:
 class TestGetPredictiveOptimization:
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_with_results(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.delta import register
 
         mock_sql.return_value = [
             {
@@ -189,8 +224,9 @@ class TestGetPredictiveOptimization:
 
     @patch("databricks_debug_mcp.tools.delta.execute_sql")
     def test_no_results(self, mock_sql):
-        from databricks_debug_mcp.tools.delta import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.delta import register
 
         mock_sql.return_value = []
         mcp = FastMCP("test")

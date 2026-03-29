@@ -3,7 +3,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from ..client import get_workspace_client
-from ..formatting import enum_val, format_bytes, ms_to_str, deduplicate_events
+from ..formatting import deduplicate_events, enum_val, ms_to_str
 
 
 def register(mcp: FastMCP) -> None:
@@ -30,7 +30,8 @@ def register(mcp: FastMCP) -> None:
 
         if c.spark_conf:
             interesting = {
-                k: v for k, v in c.spark_conf.items()
+                k: v
+                for k, v in c.spark_conf.items()
                 if any(x in k.lower() for x in ["memory", "cores", "executor", "driver", "shuffle", "sql", "gc"])
             }
             if interesting:
@@ -120,7 +121,6 @@ def register(mcp: FastMCP) -> None:
                 lines.append(f"{ts:<22} {et:<32} {details}")
 
         return "\n".join(lines)
-
 
 
 def _event_details(ev) -> str:

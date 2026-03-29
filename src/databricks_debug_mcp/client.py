@@ -62,6 +62,7 @@ _CLUSTER_TERMINATED_MSG = (
 def assert_cluster_running(cluster_id: str) -> str | None:
     """Return an error string if the cluster is not RUNNING, else None."""
     from .formatting import enum_val
+
     w = get_workspace_client()
     try:
         cluster = w.clusters.get(cluster_id=cluster_id)

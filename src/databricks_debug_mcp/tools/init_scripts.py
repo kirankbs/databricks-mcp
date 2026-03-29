@@ -33,19 +33,19 @@ def register(mcp: FastMCP) -> None:
             lines.append(f"Configured init scripts ({len(init_scripts)}):")
             for i, script in enumerate(init_scripts):
                 if script.workspace:
-                    lines.append(f"  [{i+1}] workspace: {script.workspace.destination}")
+                    lines.append(f"  [{i + 1}] workspace: {script.workspace.destination}")
                 elif script.volumes:
-                    lines.append(f"  [{i+1}] volumes: {script.volumes.destination}")
+                    lines.append(f"  [{i + 1}] volumes: {script.volumes.destination}")
                 elif script.dbfs:
-                    lines.append(f"  [{i+1}] dbfs: {script.dbfs.destination}")
+                    lines.append(f"  [{i + 1}] dbfs: {script.dbfs.destination}")
                 elif script.abfss:
-                    lines.append(f"  [{i+1}] abfss: {script.abfss.destination}")
+                    lines.append(f"  [{i + 1}] abfss: {script.abfss.destination}")
                 elif script.gcs:
-                    lines.append(f"  [{i+1}] gcs: {script.gcs.destination}")
+                    lines.append(f"  [{i + 1}] gcs: {script.gcs.destination}")
                 elif script.s3:
-                    lines.append(f"  [{i+1}] s3: {script.s3.destination}")
+                    lines.append(f"  [{i + 1}] s3: {script.s3.destination}")
                 else:
-                    lines.append(f"  [{i+1}] (unknown type)")
+                    lines.append(f"  [{i + 1}] (unknown type)")
         else:
             lines.append("No init scripts configured.")
 
@@ -109,10 +109,18 @@ def register(mcp: FastMCP) -> None:
                                             offset=0,
                                             length=min(file_size, 10_000),
                                         )
-                                        content = base64.b64decode(read_resp.data or "").decode("utf-8", errors="replace")
+                                        content = base64.b64decode(read_resp.data or "").decode(
+                                            "utf-8", errors="replace"
+                                        )
                                         last_lines = content.strip().splitlines()[-20:]
                                         for line in last_lines:
-                                            prefix = ">>> " if any(x in line.lower() for x in ["error", "fail", "denied", "not found"]) else "    "
+                                            prefix = (
+                                                ">>> "
+                                                if any(
+                                                    x in line.lower() for x in ["error", "fail", "denied", "not found"]
+                                                )
+                                                else "    "
+                                            )
                                             lines.append(f"      {prefix}{line}")
                                     except Exception:
                                         lines.append("      (unable to read)")
