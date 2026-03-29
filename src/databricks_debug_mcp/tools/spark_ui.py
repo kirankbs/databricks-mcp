@@ -4,8 +4,8 @@ from urllib.parse import quote
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import spark_ui_html, spark_ui_request, get_spark_app_id, assert_cluster_running
-from ..formatting import format_duration, format_bytes
+from ..client import assert_cluster_running, get_spark_app_id, spark_ui_html, spark_ui_request
+from ..formatting import format_bytes, format_duration
 
 _VALID_STAGE_STATUS = {"ACTIVE", "COMPLETE", "FAILED"}
 _VALID_JOB_STATUS = {"RUNNING", "SUCCEEDED", "FAILED"}
@@ -52,7 +52,9 @@ def register(mcp: FastMCP) -> None:
         stages = stages[:limit]
 
         lines = [f"Top {len(stages)} Spark stages (sorted by {sort_by}):\n"]
-        lines.append(f"{'Stage':<8} {'Status':<12} {'Tasks':<12} {'Duration':<12} {'Shuffle R':<14} {'Shuffle W':<14} {'Description'}")
+        lines.append(
+            f"{'Stage':<8} {'Status':<12} {'Tasks':<12} {'Duration':<12} {'Shuffle R':<14} {'Shuffle W':<14} {'Description'}"
+        )
         lines.append("-" * 100)
         for s in stages:
             stage_id = s.get("stageId", "?")
@@ -116,7 +118,7 @@ def register(mcp: FastMCP) -> None:
 
             peak = ex.get("peakMemoryMetrics", {})
             if peak:
-                lines.append(f"  --- Peak Memory ---")
+                lines.append("  --- Peak Memory ---")
                 jvm_heap = peak.get("JVMHeapMemory", 0)
                 jvm_offheap = peak.get("JVMOffHeapMemory", 0)
                 python_rss = peak.get("PythonWorkerUsedMemory", 0)
@@ -132,15 +134,21 @@ def register(mcp: FastMCP) -> None:
                 lines.append(f"  Direct memory:    {format_bytes(direct)}")
                 lines.append(f"  Mapped pool:      {format_bytes(mapped)}")
                 if jvm_rss or py_rss or other_rss:
-                    lines.append(f"  Process tree RSS: JVM={format_bytes(jvm_rss)} Python={format_bytes(py_rss)} Other={format_bytes(other_rss)}")
+                    lines.append(
+                        f"  Process tree RSS: JVM={format_bytes(jvm_rss)} Python={format_bytes(py_rss)} Other={format_bytes(other_rss)}"
+                    )
 
                 # OOM risk assessment
                 if mem_max > 0 and jvm_heap > 0:
                     heap_vs_alloc = jvm_heap / mem_max * 100
                     if heap_vs_alloc > 90:
-                        lines.append(f"  🔴 CRITICAL: JVM heap peak is {heap_vs_alloc:.0f}% of allocated — OOM imminent")
+                        lines.append(
+                            f"  🔴 CRITICAL: JVM heap peak is {heap_vs_alloc:.0f}% of allocated — OOM imminent"
+                        )
                     elif heap_vs_alloc > 75:
-                        lines.append(f"  🟡 WARNING: JVM heap peak is {heap_vs_alloc:.0f}% of allocated — OOM risk on long-running jobs")
+                        lines.append(
+                            f"  🟡 WARNING: JVM heap peak is {heap_vs_alloc:.0f}% of allocated — OOM risk on long-running jobs"
+                        )
 
             lines.append("")
 
@@ -178,7 +186,9 @@ def register(mcp: FastMCP) -> None:
             failed = ex.get("failedTasks", 0)
             sr = format_bytes(ex.get("totalShuffleRead"))
             sw = format_bytes(ex.get("totalShuffleWrite"))
-            lines.append(f"{eid:<6} {host:<30} {cores:<6} {mem:<12} {disk:<12} {active:<8} {done:<8} {failed:<8} {sr:<14} {sw}")
+            lines.append(
+                f"{eid:<6} {host:<30} {cores:<6} {mem:<12} {disk:<12} {active:<8} {done:<8} {failed:<8} {sr:<14} {sw}"
+            )
             if eid != "driver":
                 totals["active"] += active
                 totals["done"] += done
@@ -240,7 +250,9 @@ def register(mcp: FastMCP) -> None:
         lines.append("-" * 80)
         for q in queries:
             desc = q.get("description", "")[:60]
-            lines.append(f"{q.get('id', '?'):<6} {q.get('status', '?'):<12} {format_duration(q.get('duration')):<12} {desc}")
+            lines.append(
+                f"{q.get('id', '?'):<6} {q.get('status', '?'):<12} {format_duration(q.get('duration')):<12} {desc}"
+            )
         return "\n".join(lines)
 
     @mcp.tool()
@@ -306,9 +318,7 @@ def register(mcp: FastMCP) -> None:
             if isinstance(data, list) and data:
                 rest_ok = True
                 lines.append(f"Active Streaming Queries ({len(data)}):\n")
-                lines.append(
-                    f"{'Name':<42} {'Status':<10} {'ID':<40} {'isActive'}"
-                )
+                lines.append(f"{'Name':<42} {'Status':<10} {'ID':<40} {'isActive'}")
                 lines.append("-" * 100)
                 for q in data:
                     name = q.get("name", "?")
@@ -412,10 +422,16 @@ def _parse_streaming_queries_html_parts(page: str) -> tuple[str, str]:
             error = re.sub(r"\s*\+details\s*", "", error).strip()
 
         entry = {
-            "name": name, "status": status, "query_id": query_id,
-            "run_id": run_id, "start_time": start_time, "duration": duration,
-            "avg_input_sec": avg_input, "avg_process_sec": avg_process,
-            "latest_batch": latest_batch, "error": error,
+            "name": name,
+            "status": status,
+            "query_id": query_id,
+            "run_id": run_id,
+            "start_time": start_time,
+            "duration": duration,
+            "avg_input_sec": avg_input,
+            "avg_process_sec": avg_process,
+            "latest_batch": latest_batch,
+            "error": error,
         }
 
         if status == "FAILED":
@@ -428,8 +444,7 @@ def _parse_streaming_queries_html_parts(page: str) -> tuple[str, str]:
     if active:
         active_lines.append(f"Active Streaming Queries ({len(active)}):\n")
         active_lines.append(
-            f"{'Name':<42} {'Status':<10} {'Duration':<28} "
-            f"{'In/s':<8} {'Proc/s':<8} {'Batch':<8} Run ID"
+            f"{'Name':<42} {'Status':<10} {'Duration':<28} {'In/s':<8} {'Proc/s':<8} {'Batch':<8} Run ID"
         )
         active_lines.append("-" * 130)
         for q in active:
@@ -448,18 +463,14 @@ def _parse_streaming_queries_html_parts(page: str) -> tuple[str, str]:
             completed_lines.append(f"    Run ID:       {q['run_id']}")
             completed_lines.append(f"    Duration:     {q['duration']}")
             completed_lines.append(f"    Latest Batch: {q['latest_batch']}")
-            completed_lines.append(
-                f"    Throughput:   {q['avg_input_sec']} in/s, {q['avg_process_sec']} proc/s"
-            )
+            completed_lines.append(f"    Throughput:   {q['avg_input_sec']} in/s, {q['avg_process_sec']} proc/s")
             if q["error"]:
                 error_lines = q["error"].split("\n")
                 if len(error_lines) > 30:
                     completed_lines.append("    Error (truncated):")
                     for el in error_lines[:20]:
                         completed_lines.append(f"      {el}")
-                    completed_lines.append(
-                        f"      ... ({len(error_lines) - 25} lines omitted)"
-                    )
+                    completed_lines.append(f"      ... ({len(error_lines) - 25} lines omitted)")
                     for el in error_lines[-5:]:
                         completed_lines.append(f"      {el}")
                 else:
@@ -483,7 +494,7 @@ def _format_streaming_progress_rest(data: dict, run_id: str) -> str:
         recent = data.get("recentProgress", [])
         if recent:
             latest = recent[-1]
-            lines.append(f"\nLatest batch:")
+            lines.append("\nLatest batch:")
             lines.append(f"  Input rows/s:   {latest.get('inputRowsPerSecond', '?')}")
             lines.append(f"  Process rows/s: {latest.get('processedRowsPerSecond', '?')}")
             lines.append(f"  Batch ID:       {latest.get('batchId', '?')}")
@@ -516,6 +527,7 @@ def _parse_streaming_query_stats_html(page: str, run_id: str) -> str:
             continue
         try:
             import json
+
             data = json.loads(var_data)
             if data:
                 values = [d["y"] for d in data if "y" in d]
@@ -541,7 +553,9 @@ def _parse_streaming_query_stats_html(page: str, run_id: str) -> str:
         lines.append(f"  {'Time':<16} {'addBatch':<14} {'queryPlanning':<16} {'walCommit':<12}")
         lines.append("  " + "-" * 56)
         for time_str, add_batch, query_plan, wal in recent:
-            lines.append(f"  {time_str:<16} {float(add_batch):>10.0f}ms   {float(query_plan):>10.0f}ms     {float(wal):>8.0f}ms")
+            lines.append(
+                f"  {time_str:<16} {float(add_batch):>10.0f}ms   {float(query_plan):>10.0f}ms     {float(wal):>8.0f}ms"
+            )
 
     if len(lines) <= 2:
         lines.append("No batch metrics available.")

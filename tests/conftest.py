@@ -1,6 +1,7 @@
 """Shared test fixtures for databricks-debug-mcp tests."""
 
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 
@@ -27,4 +28,5 @@ def mock_sql():
 def mcp_server():
     """Return the FastMCP instance with all tools registered."""
     from databricks_debug_mcp.server import mcp
+
     return mcp

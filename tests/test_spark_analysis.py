@@ -8,8 +8,9 @@ class TestAnalyzeStageSkew:
     @patch("databricks_debug_mcp.tools.spark_analysis.get_spark_app_id", return_value="app-123")
     @patch("databricks_debug_mcp.tools.spark_analysis.assert_cluster_running", return_value=None)
     def test_skewed_stage(self, mock_assert, mock_app, mock_ui):
-        from databricks_debug_mcp.tools.spark_analysis import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.spark_analysis import register
 
         # First call: get stages
         stages = [
@@ -46,8 +47,9 @@ class TestAnalyzeStageSkew:
     @patch("databricks_debug_mcp.tools.spark_analysis.get_spark_app_id", return_value="app-123")
     @patch("databricks_debug_mcp.tools.spark_analysis.assert_cluster_running", return_value=None)
     def test_spill_detected(self, mock_assert, mock_app, mock_ui):
-        from databricks_debug_mcp.tools.spark_analysis import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.spark_analysis import register
 
         stages = [
             {
@@ -79,8 +81,9 @@ class TestAnalyzeStageSkew:
 
     @patch("databricks_debug_mcp.tools.spark_analysis.assert_cluster_running")
     def test_terminated_cluster(self, mock_assert):
-        from databricks_debug_mcp.tools.spark_analysis import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.spark_analysis import register
 
         mock_assert.return_value = "Cluster not RUNNING"
         mcp = FastMCP("test")
@@ -95,8 +98,9 @@ class TestGetSparkConfig:
     @patch("databricks_debug_mcp.tools.spark_analysis.get_spark_app_id", return_value="app-1")
     @patch("databricks_debug_mcp.tools.spark_analysis.assert_cluster_running", return_value=None)
     def test_config_with_antipatterns(self, mock_assert, mock_app, mock_ui):
-        from databricks_debug_mcp.tools.spark_analysis import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.spark_analysis import register
 
         mock_ui.return_value = {
             "sparkProperties": [
@@ -122,8 +126,9 @@ class TestGetSparkConfig:
 class TestGetLibraryStatus:
     @patch("databricks_debug_mcp.tools.spark_analysis.get_workspace_client")
     def test_libraries_with_failure(self, mock_get_client):
-        from databricks_debug_mcp.tools.spark_analysis import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.spark_analysis import register
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -162,8 +167,9 @@ class TestGetLibraryStatus:
 
     @patch("databricks_debug_mcp.tools.spark_analysis.get_workspace_client")
     def test_no_libraries(self, mock_get_client):
-        from databricks_debug_mcp.tools.spark_analysis import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.spark_analysis import register
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client

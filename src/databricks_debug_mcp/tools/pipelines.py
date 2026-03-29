@@ -3,7 +3,7 @@ import re
 from mcp.server.fastmcp import FastMCP
 
 from ..client import get_workspace_client
-from ..formatting import format_duration, enum_val
+from ..formatting import enum_val
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
@@ -117,7 +117,7 @@ def register(mcp: FastMCP) -> None:
             msg = ev.message or ""
             error = ev.error or None
 
-            lines.append(f"[{i+1}] {ts}  {level}  {event_type}")
+            lines.append(f"[{i + 1}] {ts}  {level}  {event_type}")
             if msg:
                 lines.append(f"    Message: {msg[:200]}")
             if error:

@@ -124,6 +124,7 @@ def _detect_codec(path: str) -> str | None:
 
 def _decompress_zstd(data: bytes) -> bytes:
     import zstandard as zstd
+
     return zstd.ZstdDecompressor().decompress(data, max_output_size=256 * 1024 * 1024)
 
 
@@ -154,7 +155,8 @@ def _decompress_hadoop_lz4(data: bytes) -> bytes:
             compressed_size = struct.unpack(">I", sub_header)[0]
             compressed_data = buf.read(compressed_size)
             decompressed = lz4.block.decompress(
-                compressed_data, uncompressed_size=min(remaining, original_size),
+                compressed_data,
+                uncompressed_size=min(remaining, original_size),
             )
             result.extend(decompressed)
             remaining -= len(decompressed)
@@ -164,6 +166,7 @@ def _decompress_hadoop_lz4(data: bytes) -> bytes:
 
 def _decompress_snappy(data: bytes) -> bytes:
     import snappy
+
     return snappy.decompress(data)
 
 
@@ -225,9 +228,7 @@ def read_and_parse_event_log(
             text = decompress(raw, codec)
         except ImportError as e:
             module = str(e).split("'")[1] if "'" in str(e) else "unknown"
-            raise ImportError(
-                f"Compression codec requires additional package: pip install {module}"
-            ) from e
+            raise ImportError(f"Compression codec requires additional package: pip install {module}") from e
         except Exception:
             # Try reading as plain text if decompression fails
             try:

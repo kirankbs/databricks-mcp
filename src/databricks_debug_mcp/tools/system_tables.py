@@ -36,7 +36,9 @@ def register(mcp: FastMCP) -> None:
             conditions.append("u.usage_metadata.job_id = :job_id")
             params.append(StatementParameterListItem(name="job_id", value=str(int(job_id))))
         elif job_name:
-            conditions.append("u.usage_metadata.job_id IN (SELECT CAST(job_id AS STRING) FROM system.lakeflow.jobs WHERE name ILIKE :job_name)")
+            conditions.append(
+                "u.usage_metadata.job_id IN (SELECT CAST(job_id AS STRING) FROM system.lakeflow.jobs WHERE name ILIKE :job_name)"
+            )
             params.append(StatementParameterListItem(name="job_name", value=f"%{job_name}%"))
         else:
             return "Provide job_id, job_name, or run_id."
@@ -74,7 +76,13 @@ def register(mcp: FastMCP) -> None:
             rid = row.get("run_id", "?")
             key = str(rid)
             if key not in run_totals:
-                run_totals[key] = {"job_id": row.get("job_id"), "dbu": 0.0, "cost": 0.0, "skus": set(), "date": row.get("usage_date")}
+                run_totals[key] = {
+                    "job_id": row.get("job_id"),
+                    "dbu": 0.0,
+                    "cost": 0.0,
+                    "skus": set(),
+                    "date": row.get("usage_date"),
+                }
             run_totals[key]["dbu"] += float(row.get("total_dbu") or 0)
             run_totals[key]["cost"] += float(row.get("estimated_cost_usd") or 0)
             run_totals[key]["skus"].add(row.get("sku_name", ""))
@@ -91,7 +99,9 @@ def register(mcp: FastMCP) -> None:
             total_dbu += dbu
             total_cost += cost
             skus = ", ".join(sorted(info["skus"]))
-            lines.append(f"{rid:<16} {str(info['job_id']):<12} {str(info['date']):<12} {dbu:<12.2f} ${cost:<11.2f} {skus}")
+            lines.append(
+                f"{rid:<16} {str(info['job_id']):<12} {str(info['date']):<12} {dbu:<12.2f} ${cost:<11.2f} {skus}"
+            )
 
         lines.append("-" * 85)
         lines.append(f"{'TOTAL':<16} {'':<12} {'':<12} {total_dbu:<12.2f} ${total_cost:<11.2f}")
@@ -163,8 +173,10 @@ def register(mcp: FastMCP) -> None:
             rows_out = row.get("rows_produced", "?")
             error = row.get("error_message") or ""
 
-            lines.append(f"[{i+1}] {row.get('executed_by', '?')} @ {row.get('execution_start_time_utc', '?')}")
-            lines.append(f"    Duration: {format_duration(dur_ms)}  |  Rows: {rows_out}  |  Scanned: {format_bytes(read_b)}")
+            lines.append(f"[{i + 1}] {row.get('executed_by', '?')} @ {row.get('execution_start_time_utc', '?')}")
+            lines.append(
+                f"    Duration: {format_duration(dur_ms)}  |  Rows: {rows_out}  |  Scanned: {format_bytes(read_b)}"
+            )
             lines.append(f"    SQL: {stmt}")
             if error:
                 lines.append(f"    ERROR: {error[:200]}")
@@ -384,7 +396,9 @@ def register(mcp: FastMCP) -> None:
 
         # Separate job failures from service errors
         job_failures = [r for r in rows if r.get("action_name") == "runFailed"]
-        service_errors = [r for r in rows if r.get("action_name") != "runFailed" and int(r.get("status_code") or 0) >= 400]
+        service_errors = [
+            r for r in rows if r.get("action_name") != "runFailed" and int(r.get("status_code") or 0) >= 400
+        ]
 
         lines = []
 

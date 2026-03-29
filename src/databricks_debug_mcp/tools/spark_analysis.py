@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
-from ..client import get_workspace_client, spark_ui_request, get_spark_app_id, assert_cluster_running
-from ..formatting import format_duration, format_bytes, enum_val
+from ..client import assert_cluster_running, get_spark_app_id, get_workspace_client, spark_ui_request
+from ..formatting import enum_val, format_bytes, format_duration
 
 
 def register(mcp: FastMCP) -> None:
@@ -40,10 +40,7 @@ def register(mcp: FastMCP) -> None:
 
         # Pre-filter: only fetch task summaries for stages worth analyzing
         # (enough tasks and non-trivial duration) to avoid N+1 API calls
-        candidate_stages = [
-            s for s in stages
-            if s.get("numTasks", 0) >= 2 and s.get("executorRunTime", 0) > 1000
-        ]
+        candidate_stages = [s for s in stages if s.get("numTasks", 0) >= 2 and s.get("executorRunTime", 0) > 1000]
         # Cap at 30 stages to avoid excessive API calls
         candidate_stages = sorted(candidate_stages, key=lambda s: s.get("executorRunTime", 0), reverse=True)[:30]
 
@@ -97,7 +94,9 @@ def register(mcp: FastMCP) -> None:
         else:
             lines.append("No spill detected.")
 
-        lines.append(f"\n{'Stage':<8} {'Tasks':<8} {'Median':<10} {'P95':<10} {'Max':<10} {'Skew':<8} {'Spill Mem':<12} {'Spill Disk':<12} {'Shuffle R':<12}")
+        lines.append(
+            f"\n{'Stage':<8} {'Tasks':<8} {'Median':<10} {'P95':<10} {'Max':<10} {'Skew':<8} {'Spill Mem':<12} {'Spill Disk':<12} {'Shuffle R':<12}"
+        )
         lines.append("-" * 100)
 
         top = sorted(all_analyses, key=lambda x: x["skew_ratio"], reverse=True)[:20]
@@ -135,8 +134,13 @@ def register(mcp: FastMCP) -> None:
         lines = [f"Spark configuration -- cluster {cluster_id}:\n"]
 
         categories = {
-            "Memory": [], "Shuffle": [], "SQL/AQE": [],
-            "Executor": [], "Driver": [], "IO/Compression": [], "Other": [],
+            "Memory": [],
+            "Shuffle": [],
+            "SQL/AQE": [],
+            "Executor": [],
+            "Driver": [],
+            "IO/Compression": [],
+            "Other": [],
         }
 
         for prop in spark_props:
@@ -166,7 +170,7 @@ def register(mcp: FastMCP) -> None:
 
         issues = _check_config_antipatterns(spark_props)
         if issues:
-            lines.append(f"\n{'='*60}")
+            lines.append(f"\n{'=' * 60}")
             lines.append("CONFIGURATION CONCERNS:")
             for issue in issues:
                 lines.append(f"  [!] {issue}")
@@ -266,7 +270,9 @@ def _check_config_antipatterns(spark_props: list) -> list[str]:
         props[key] = str(val)
 
     if props.get("spark.sql.adaptive.enabled", "true").lower() == "false":
-        issues.append("AQE (Adaptive Query Execution) is DISABLED -- enable for automatic shuffle partition coalescing and join optimization")
+        issues.append(
+            "AQE (Adaptive Query Execution) is DISABLED -- enable for automatic shuffle partition coalescing and join optimization"
+        )
 
     try:
         shuffle_parts = int(props.get("spark.sql.shuffle.partitions", "200"))
@@ -278,7 +284,9 @@ def _check_config_antipatterns(spark_props: list) -> list[str]:
     try:
         broadcast_mb = int(props.get("spark.sql.autoBroadcastJoinThreshold", "10485760"))
         if broadcast_mb > 1024 * 1024 * 1024:
-            issues.append(f"autoBroadcastJoinThreshold is {format_bytes(broadcast_mb)} -- driver OOM risk from broadcasting large tables")
+            issues.append(
+                f"autoBroadcastJoinThreshold is {format_bytes(broadcast_mb)} -- driver OOM risk from broadcasting large tables"
+            )
     except ValueError:
         pass
 
@@ -293,7 +301,9 @@ def _check_config_antipatterns(spark_props: list) -> list[str]:
         else:
             overhead_mb = None
         if overhead_mb is not None and overhead_mb < 512:
-            issues.append(f"spark.executor.memoryOverhead={overhead} -- may be too low for PySpark workloads (recommended: >=1g)")
+            issues.append(
+                f"spark.executor.memoryOverhead={overhead} -- may be too low for PySpark workloads (recommended: >=1g)"
+            )
     except ValueError:
         pass
 

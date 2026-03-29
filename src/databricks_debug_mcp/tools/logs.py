@@ -144,7 +144,9 @@ def register(mcp: FastMCP) -> None:
         return "\n\n".join(sections)
 
 
-def _search_in_lines(lines: list[str], pattern: str, log_type: str, log_path: str, context: int = 2) -> tuple[bool, str]:
+def _search_in_lines(
+    lines: list[str], pattern: str, log_type: str, log_path: str, context: int = 2
+) -> tuple[bool, str]:
     """Search lines for pattern. Returns (found, result_text)."""
     if len(pattern) > 200:
         return False, "Pattern too long (max 200 chars)."

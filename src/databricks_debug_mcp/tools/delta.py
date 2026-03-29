@@ -53,11 +53,15 @@ def register(mcp: FastMCP) -> None:
         # Health checks
         issues = []
         if num_files > 0 and avg_file_size < 32 * 1024 * 1024:
-            issues.append(f"SMALL FILES: avg file size is {format_bytes(int(avg_file_size))} (target: 128MB-1GB). Run OPTIMIZE.")
+            issues.append(
+                f"SMALL FILES: avg file size is {format_bytes(int(avg_file_size))} (target: 128MB-1GB). Run OPTIMIZE."
+            )
         if num_files > 10000:
             issues.append(f"HIGH FILE COUNT: {num_files} files. May cause slow planning. Run OPTIMIZE.")
         if "delta.autoOptimize.optimizeWrite" not in str(table_props):
-            issues.append("AUTO-OPTIMIZE not set: consider ALTER TABLE SET TBLPROPERTIES ('delta.autoOptimize.optimizeWrite' = 'true')")
+            issues.append(
+                "AUTO-OPTIMIZE not set: consider ALTER TABLE SET TBLPROPERTIES ('delta.autoOptimize.optimizeWrite' = 'true')"
+            )
 
         # Get last optimize/vacuum from history
         try:
@@ -109,12 +113,14 @@ def register(mcp: FastMCP) -> None:
                 if pred_rows:
                     lines.append(f"\nPredictive optimization ({len(pred_rows)} recent operations):")
                     for p in pred_rows:
-                        lines.append(f"  {p.get('operation_type')} @ {p.get('start_time')} -- {p.get('usage_quantity', '?')} DBUs")
+                        lines.append(
+                            f"  {p.get('operation_type')} @ {p.get('start_time')} -- {p.get('usage_quantity', '?')} DBUs"
+                        )
             except Exception:
                 lines.append("\nPredictive optimization: (system table not available)")
 
         if issues:
-            lines.append(f"\n{'='*60}")
+            lines.append(f"\n{'=' * 60}")
             lines.append("HEALTH ISSUES DETECTED:")
             for issue in issues:
                 lines.append(f"  [!] {issue}")
@@ -192,7 +198,7 @@ def register(mcp: FastMCP) -> None:
                 schema_changes.append((ver, ts, op))
 
         if schema_changes:
-            lines.append(f"\nSchema/property changes detected:")
+            lines.append("\nSchema/property changes detected:")
             for ver, ts, op in schema_changes:
                 lines.append(f"  Version {ver} @ {ts}: {op}")
 
@@ -221,11 +227,13 @@ def register(mcp: FastMCP) -> None:
                 conditions.append("catalog_name = :catalog")
                 conditions.append("schema_name = :schema")
                 conditions.append("table_name = :tbl")
-                params.extend([
-                    StatementParameterListItem(name="catalog", value=parts[0]),
-                    StatementParameterListItem(name="schema", value=parts[1]),
-                    StatementParameterListItem(name="tbl", value=parts[2]),
-                ])
+                params.extend(
+                    [
+                        StatementParameterListItem(name="catalog", value=parts[0]),
+                        StatementParameterListItem(name="schema", value=parts[1]),
+                        StatementParameterListItem(name="tbl", value=parts[2]),
+                    ]
+                )
             else:
                 conditions.append("table_name = :tbl")
                 params.append(StatementParameterListItem(name="tbl", value=parts[-1]))

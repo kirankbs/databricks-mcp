@@ -6,8 +6,9 @@ from unittest.mock import MagicMock, patch
 class TestGetPipelineStatus:
     @patch("databricks_debug_mcp.tools.pipelines.get_workspace_client")
     def test_by_id(self, mock_get_client):
-        from databricks_debug_mcp.tools.pipelines import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.pipelines import register
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -26,7 +27,12 @@ class TestGetPipelineStatus:
 
         updates = MagicMock()
         updates.updates = [
-            MagicMock(update_id="u-1", state=MagicMock(value="COMPLETED"), cause=MagicMock(value="USER_ACTION"), creation_time="2024-01-15"),
+            MagicMock(
+                update_id="u-1",
+                state=MagicMock(value="COMPLETED"),
+                cause=MagicMock(value="USER_ACTION"),
+                creation_time="2024-01-15",
+            ),
         ]
         mock_client.pipelines.list_updates.return_value = updates
 
@@ -40,8 +46,9 @@ class TestGetPipelineStatus:
 
     @patch("databricks_debug_mcp.tools.pipelines.get_workspace_client")
     def test_no_args(self, mock_get_client):
-        from databricks_debug_mcp.tools.pipelines import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.pipelines import register
 
         mcp = FastMCP("test")
         register(mcp)
@@ -53,8 +60,9 @@ class TestGetPipelineStatus:
 class TestGetPipelineErrors:
     @patch("databricks_debug_mcp.tools.pipelines.get_workspace_client")
     def test_with_errors(self, mock_get_client):
-        from databricks_debug_mcp.tools.pipelines import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.pipelines import register
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -77,8 +85,9 @@ class TestGetPipelineErrors:
 
     @patch("databricks_debug_mcp.tools.pipelines.get_workspace_client")
     def test_no_errors(self, mock_get_client):
-        from databricks_debug_mcp.tools.pipelines import register
         from mcp.server.fastmcp import FastMCP
+
+        from databricks_debug_mcp.tools.pipelines import register
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client

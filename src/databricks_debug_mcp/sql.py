@@ -9,7 +9,6 @@ from .client import get_workspace_client
 from .config import get_config
 from .formatting import enum_val
 
-
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$")
 
 
