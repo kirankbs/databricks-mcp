@@ -57,7 +57,6 @@ def discover_event_log_path(cluster_id: str) -> EventLogConfig:
     try:
         for entry in w.dbfs.list(event_log_dir):
             if entry.is_dir:
-                # Event logs are nested: eventlog/<cluster_id>_<ip>/<files>
                 try:
                     for sub_entry in w.dbfs.list(entry.path):
                         if not sub_entry.is_dir and sub_entry.file_size > 0:
@@ -86,6 +85,8 @@ def read_dbfs_file(path: str, max_bytes: int = 200 * 1024 * 1024) -> bytes:
     """Read a complete file from DBFS, handling the 1MB chunk limit.
 
     Caps total read at max_bytes (default 200MB) to avoid OOM on huge event logs.
+    Returns silently truncated data if the file exceeds max_bytes — callers
+    cannot distinguish truncation from a complete read.
     """
     w = get_workspace_client()
     chunks = []
@@ -103,9 +104,10 @@ def read_dbfs_file(path: str, max_bytes: int = 200 * 1024 * 1024) -> bytes:
 
         if total >= max_bytes:
             break
-        if resp.bytes_read < _CHUNK_SIZE:
+        bytes_read = resp.bytes_read or len(chunk)
+        if bytes_read < _CHUNK_SIZE:
             break
-        offset += resp.bytes_read
+        offset += bytes_read
 
     return b"".join(chunks)
 
@@ -126,6 +128,9 @@ def _decompress_zstd(data: bytes) -> bytes:
     import zstandard as zstd
 
     return zstd.ZstdDecompressor().decompress(data, max_output_size=256 * 1024 * 1024)
+
+
+_MAX_DECOMPRESS_SIZE = 256 * 1024 * 1024  # 256MB cap, matches zstd
 
 
 def _decompress_hadoop_lz4(data: bytes) -> bytes:
@@ -154,12 +159,18 @@ def _decompress_hadoop_lz4(data: bytes) -> bytes:
                 break
             compressed_size = struct.unpack(">I", sub_header)[0]
             compressed_data = buf.read(compressed_size)
+            if len(compressed_data) < compressed_size:
+                raise ValueError(
+                    f"Truncated LZ4 block: expected {compressed_size} bytes, got {len(compressed_data)}"
+                )
             decompressed = lz4.block.decompress(
                 compressed_data,
                 uncompressed_size=min(remaining, original_size),
             )
             result.extend(decompressed)
             remaining -= len(decompressed)
+            if len(result) > _MAX_DECOMPRESS_SIZE:
+                raise ValueError(f"LZ4 decompressed output too large (>{_MAX_DECOMPRESS_SIZE} bytes)")
 
     return bytes(result)
 
@@ -167,11 +178,18 @@ def _decompress_hadoop_lz4(data: bytes) -> bytes:
 def _decompress_snappy(data: bytes) -> bytes:
     import snappy
 
-    return snappy.decompress(data)
+    result = snappy.decompress(data)
+    if len(result) > 256 * 1024 * 1024:
+        raise ValueError(f"Snappy decompressed output too large ({len(result)} bytes, max 256MB)")
+    return result
 
 
 def decompress(data: bytes, codec: str | None) -> str:
-    """Decompress event log data and return as UTF-8 text."""
+    """Decompress event log data and return as UTF-8 text.
+
+    LZ4 uses Hadoop BlockCompressorStream framing, not standard LZ4 frames —
+    requires lz4.block, not lz4.frame.
+    """
     if codec is None:
         return data.decode("utf-8")
     if codec == "zstd":
@@ -192,6 +210,10 @@ def parse_events(text: str, event_types: set[str] | None = None) -> list[dict]:
     for line in text.splitlines():
         line = line.strip()
         if not line:
+            continue
+        # Fast string pre-filter before full JSON parse — event type appears
+        # near the start of each line, so this avoids parsing irrelevant events
+        if event_types and not any(et in line for et in event_types):
             continue
         try:
             event = json.loads(line)
@@ -216,7 +238,6 @@ def read_and_parse_event_log(
     """
     config = discover_event_log_path(cluster_id)
 
-    # Read most recent files first
     files_to_read = config.files[-max_files:]
 
     all_events = []
@@ -230,7 +251,6 @@ def read_and_parse_event_log(
             module = str(e).split("'")[1] if "'" in str(e) else "unknown"
             raise ImportError(f"Compression codec requires additional package: pip install {module}") from e
         except Exception:
-            # Try reading as plain text if decompression fails
             try:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError:

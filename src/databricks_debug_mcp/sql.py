@@ -66,7 +66,7 @@ def execute_sql(
                 error_msg = resp.status.error.message or str(resp.status.error)
             raise RuntimeError(f"SQL statement failed: {error_msg}")
 
-    columns = [col.name for col in resp.manifest.schema.columns] if resp.manifest and resp.manifest.schema else []
+    columns = [col.name for col in (resp.manifest.schema.columns or [])] if resp.manifest and resp.manifest.schema else []
     rows = []
     if resp.result and resp.result.data_array:
         for row_data in resp.result.data_array:

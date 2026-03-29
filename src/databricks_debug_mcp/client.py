@@ -42,12 +42,22 @@ def spark_ui_html(cluster_id: str, path: str) -> str:
     return resp.text
 
 
+_app_id_cache: dict[str, str] = {}
+
+
 def get_spark_app_id(cluster_id: str) -> str:
-    """Discover the Spark application ID for a running cluster."""
+    """Discover the Spark application ID for a running cluster.
+
+    Cached per cluster_id — the app ID is stable for the lifetime of a cluster.
+    """
+    if cluster_id in _app_id_cache:
+        return _app_id_cache[cluster_id]
     data = spark_ui_request(cluster_id, "applications")
     if not data:
         raise ValueError(f"No Spark applications found for cluster {cluster_id}")
-    return data[0]["id"]
+    app_id = data[0]["id"]
+    _app_id_cache[cluster_id] = app_id
+    return app_id
 
 
 _CLUSTER_TERMINATED_MSG = (

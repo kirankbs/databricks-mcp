@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 class Config:
     profile: str = field(default_factory=lambda: os.environ.get("DATABRICKS_CONFIG_PROFILE", "DEFAULT"))
     warehouse_id: str | None = field(default_factory=lambda: os.environ.get("DATABRICKS_WAREHOUSE_ID"))
-    log_tail_default: int = 200
 
 
 _config: Config | None = None
