@@ -1,15 +1,16 @@
 from mcp.server.fastmcp import FastMCP
 
-from .tools.jobs import register as register_jobs
 from .tools.clusters import register as register_clusters
-from .tools.logs import register as register_logs
-from .tools.spark_ui import register as register_spark_ui
-from .tools.spark_analysis import register as register_spark_analysis
 from .tools.delta import register as register_delta
-from .tools.system_tables import register as register_system_tables
-from .tools.lineage import register as register_lineage
-from .tools.pipelines import register as register_pipelines
+from .tools.event_logs import register as register_event_logs
 from .tools.init_scripts import register as register_init_scripts
+from .tools.jobs import register as register_jobs
+from .tools.lineage import register as register_lineage
+from .tools.logs import register as register_logs
+from .tools.pipelines import register as register_pipelines
+from .tools.spark_analysis import register as register_spark_analysis
+from .tools.spark_ui import register as register_spark_ui
+from .tools.system_tables import register as register_system_tables
 
 mcp = FastMCP(
     "databricks-debug",
@@ -29,7 +30,8 @@ mcp = FastMCP(
         "get_workspace_failures, "
         "get_table_lineage, get_column_lineage, "
         "get_pipeline_status, get_pipeline_errors, get_pipeline_data_quality, "
-        "get_init_script_logs."
+        "get_init_script_logs, "
+        "get_event_log_stages, get_event_log_failures, analyze_event_log_skew."
     ),
 )
 
@@ -43,6 +45,7 @@ register_system_tables(mcp)
 register_lineage(mcp)
 register_pipelines(mcp)
 register_init_scripts(mcp)
+register_event_logs(mcp)
 
 
 def main() -> None:

@@ -10,8 +10,7 @@ Requires cluster log delivery to be configured on the cluster.
 from mcp.server.fastmcp import FastMCP
 
 from ..event_log import read_and_parse_event_log
-from ..formatting import format_duration, format_bytes, truncate_stacktrace
-
+from ..formatting import format_bytes, format_duration, truncate_stacktrace
 
 _STAGE_EVENTS = {
     "SparkListenerStageCompleted",
@@ -22,12 +21,16 @@ _TASK_EVENTS = {
     "SparkListenerTaskEnd",
 }
 
-_ALL_DEBUG_EVENTS = _STAGE_EVENTS | _TASK_EVENTS | {
-    "SparkListenerJobStart",
-    "SparkListenerJobEnd",
-    "SparkListenerExecutorAdded",
-    "SparkListenerExecutorRemoved",
-}
+_ALL_DEBUG_EVENTS = (
+    _STAGE_EVENTS
+    | _TASK_EVENTS
+    | {
+        "SparkListenerJobStart",
+        "SparkListenerJobEnd",
+        "SparkListenerExecutorAdded",
+        "SparkListenerExecutorRemoved",
+    }
+)
 
 _NO_LOG_DELIVERY = (
     "Cannot read event logs: {err}\n\n"
@@ -57,7 +60,8 @@ def register(mcp: FastMCP) -> None:
         """
         try:
             events, config = read_and_parse_event_log(
-                cluster_id, event_types=_STAGE_EVENTS,
+                cluster_id,
+                event_types=_STAGE_EVENTS,
             )
         except (ValueError, ImportError) as e:
             return _NO_LOG_DELIVERY.format(err=e)
@@ -90,18 +94,20 @@ def register(mcp: FastMCP) -> None:
             spill_memory = accums.get("internal.metrics.memoryBytesSpilled", 0)
             spill_disk = accums.get("internal.metrics.diskBytesSpilled", 0)
 
-            stages.append({
-                "stage_id": stage_id,
-                "name": name,
-                "num_tasks": num_tasks,
-                "duration_ms": duration_ms,
-                "shuffle_read": shuffle_read,
-                "shuffle_write": shuffle_write,
-                "input_bytes": input_bytes,
-                "output_bytes": output_bytes,
-                "spill_memory": spill_memory,
-                "spill_disk": spill_disk,
-            })
+            stages.append(
+                {
+                    "stage_id": stage_id,
+                    "name": name,
+                    "num_tasks": num_tasks,
+                    "duration_ms": duration_ms,
+                    "shuffle_read": shuffle_read,
+                    "shuffle_write": shuffle_write,
+                    "input_bytes": input_bytes,
+                    "output_bytes": output_bytes,
+                    "spill_memory": spill_memory,
+                    "spill_disk": spill_disk,
+                }
+            )
 
         stages.sort(key=lambda s: s["duration_ms"] or 0, reverse=True)
         stages = stages[:top_n]
@@ -147,7 +153,8 @@ def register(mcp: FastMCP) -> None:
         """
         try:
             events, config = read_and_parse_event_log(
-                cluster_id, event_types=_TASK_EVENTS | {"SparkListenerExecutorRemoved"},
+                cluster_id,
+                event_types=_TASK_EVENTS | {"SparkListenerExecutorRemoved"},
             )
         except (ValueError, ImportError) as e:
             return _NO_LOG_DELIVERY.format(err=e)
@@ -173,14 +180,16 @@ def register(mcp: FastMCP) -> None:
 
             description = truncate_stacktrace(reason.get("Description", ""), max_lines=15)
 
-            failed_tasks.append({
-                "stage_id": stage_id,
-                "task_id": task_id,
-                "executor_id": executor_id,
-                "host": host,
-                "reason": reason_type,
-                "description": description,
-            })
+            failed_tasks.append(
+                {
+                    "stage_id": stage_id,
+                    "task_id": task_id,
+                    "executor_id": executor_id,
+                    "host": host,
+                    "reason": reason_type,
+                    "description": description,
+                }
+            )
 
         if not failed_tasks and not executor_removals:
             return f"No task failures or executor losses found in event logs for cluster {cluster_id}."
@@ -217,8 +226,7 @@ def register(mcp: FastMCP) -> None:
             lines.append("-" * 80)
             for t in shown:
                 lines.append(
-                    f"{t['stage_id']:<8} {t['task_id']:<8} {t['executor_id']:<12} "
-                    f"{t['host']:<16} {t['reason']}"
+                    f"{t['stage_id']:<8} {t['task_id']:<8} {t['executor_id']:<12} {t['host']:<16} {t['reason']}"
                 )
                 if t["description"]:
                     for desc_line in t["description"].splitlines()[:8]:
@@ -230,7 +238,6 @@ def register(mcp: FastMCP) -> None:
             for ev in executor_removals:
                 eid = ev.get("Executor ID", "?")
                 reason = ev.get("Removed Reason", "Unknown")
-                ts = ev.get("Timestamp", 0)
                 lines.append(f"  Executor {eid}: {reason}")
 
         return "\n".join(lines)
@@ -254,7 +261,8 @@ def register(mcp: FastMCP) -> None:
         """
         try:
             events, config = read_and_parse_event_log(
-                cluster_id, event_types=_TASK_EVENTS | _STAGE_EVENTS,
+                cluster_id,
+                event_types=_TASK_EVENTS | _STAGE_EVENTS,
             )
         except (ValueError, ImportError) as e:
             return _NO_LOG_DELIVERY.format(err=e)
@@ -289,7 +297,8 @@ def register(mcp: FastMCP) -> None:
                 "gc_time": metrics.get("JVM GC Time", 0),
                 "spill_memory": metrics.get("Memory Bytes Spilled", 0),
                 "spill_disk": metrics.get("Disk Bytes Spilled", 0),
-                "shuffle_read_bytes": shuffle_read.get("Remote Bytes Read", 0) + shuffle_read.get("Local Bytes Read", 0),
+                "shuffle_read_bytes": shuffle_read.get("Remote Bytes Read", 0)
+                + shuffle_read.get("Local Bytes Read", 0),
                 "shuffle_write_bytes": shuffle_write.get("Shuffle Bytes Written", 0),
                 "input_bytes": metrics.get("Input Metrics", {}).get("Bytes Read", 0),
             }
@@ -333,21 +342,23 @@ def register(mcp: FastMCP) -> None:
             # Find straggler task
             straggler = max(tasks, key=lambda t: t["executor_run_time"])
 
-            analyses.append({
-                "stage_id": sid,
-                "name": stage_names.get(sid, ""),
-                "num_tasks": len(tasks),
-                "median_ms": median_ms,
-                "p95_ms": p95_ms,
-                "max_ms": max_ms,
-                "skew_ratio": skew_ratio,
-                "spill_memory": total_spill_mem,
-                "spill_disk": total_spill_disk,
-                "shuffle_read": total_shuffle_read,
-                "gc_pct": gc_pct,
-                "straggler_executor": straggler["executor_id"],
-                "straggler_task": straggler["task_id"],
-            })
+            analyses.append(
+                {
+                    "stage_id": sid,
+                    "name": stage_names.get(sid, ""),
+                    "num_tasks": len(tasks),
+                    "median_ms": median_ms,
+                    "p95_ms": p95_ms,
+                    "max_ms": max_ms,
+                    "skew_ratio": skew_ratio,
+                    "spill_memory": total_spill_mem,
+                    "spill_disk": total_spill_disk,
+                    "shuffle_read": total_shuffle_read,
+                    "gc_pct": gc_pct,
+                    "straggler_executor": straggler["executor_id"],
+                    "straggler_task": straggler["task_id"],
+                }
+            )
 
         if not analyses:
             return f"No stages with enough tasks to analyze in event logs for cluster {cluster_id}."
@@ -388,7 +399,9 @@ def register(mcp: FastMCP) -> None:
             lines.append("No spill detected.")
 
         lines.append("")
-        lines.append(f"{'Stage':<8} {'Tasks':<8} {'Median':<10} {'P95':<10} {'Max':<10} {'Skew':<8} {'GC%':<8} {'Spill Disk':<12} {'Shuffle R':<12}")
+        lines.append(
+            f"{'Stage':<8} {'Tasks':<8} {'Median':<10} {'P95':<10} {'Max':<10} {'Skew':<8} {'GC%':<8} {'Spill Disk':<12} {'Shuffle R':<12}"
+        )
         lines.append("-" * 100)
 
         top = sorted(analyses, key=lambda x: x["skew_ratio"], reverse=True)[:20]

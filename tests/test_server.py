@@ -48,6 +48,10 @@ def test_all_tools_registered():
         "get_pipeline_data_quality",
         # Init Scripts
         "get_init_script_logs",
+        # Event Logs (post-mortem)
+        "get_event_log_stages",
+        "get_event_log_failures",
+        "analyze_event_log_skew",
     }
 
     assert set(tools.keys()) == expected
@@ -55,10 +59,12 @@ def test_all_tools_registered():
 
 def test_tool_count():
     from databricks_debug_mcp.server import mcp
-    assert len(mcp._tool_manager._tools) == 32
+
+    assert len(mcp._tool_manager._tools) == 35
 
 
 def test_all_tools_have_descriptions():
     from databricks_debug_mcp.server import mcp
+
     for name, tool in mcp._tool_manager._tools.items():
         assert tool.description, f"Tool {name} has no description"
