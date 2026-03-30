@@ -1,11 +1,12 @@
 import html as html_mod
+import json
 import re
 from urllib.parse import quote
 
 from mcp.server.fastmcp import FastMCP
 
 from ..client import assert_cluster_running, get_spark_app_id, spark_ui_html, spark_ui_request
-from ..formatting import format_bytes, format_duration
+from ..formatting import format_bytes, format_duration, truncate_stacktrace
 
 _VALID_STAGE_STATUS = {"ACTIVE", "COMPLETE", "FAILED"}
 _VALID_JOB_STATUS = {"RUNNING", "SUCCEEDED", "FAILED"}
@@ -139,6 +140,7 @@ def register(mcp: FastMCP) -> None:
                     )
 
                 # OOM risk assessment
+                # mem_max is Spark storage memory, not JVM -Xmx
                 if mem_max > 0 and jvm_heap > 0:
                     heap_vs_alloc = jvm_heap / mem_max * 100
                     if heap_vs_alloc > 90:
@@ -289,7 +291,6 @@ def register(mcp: FastMCP) -> None:
             st = j.get("status", "?")
             stages = j.get("numActiveStages", 0) + j.get("numCompletedStages", 0) + j.get("numFailedStages", 0)
             tasks = f"{j.get('numCompletedTasks', 0)}/{j.get('numTasks', 0)}"
-            # Duration: submissionTime/completionTime are ISO strings in Spark API
             dur = "—"
             name = j.get("name", "")[:50]
             lines.append(f"{jid:<8} {st:<12} {stages:<8} {tasks:<20} {dur:<12} {name}")
@@ -390,6 +391,8 @@ def _parse_streaming_queries_html_parts(page: str) -> tuple[str, str]:
     Returns two strings so the caller can decide whether to use the active
     section (only when REST API failed) or just the completed section.
     """
+    # Expects 9+ column rows: name, status, queryId, runId, startTime,
+    # duration, avgInput, avgProcess, latestBatch — matches Spark 3.3–3.5
     rows = re.findall(r"<tr>\s*((?:<td.*?</td>\s*)+)</tr>", page, re.DOTALL)
 
     active: list[dict] = []
@@ -465,18 +468,10 @@ def _parse_streaming_queries_html_parts(page: str) -> tuple[str, str]:
             completed_lines.append(f"    Latest Batch: {q['latest_batch']}")
             completed_lines.append(f"    Throughput:   {q['avg_input_sec']} in/s, {q['avg_process_sec']} proc/s")
             if q["error"]:
-                error_lines = q["error"].split("\n")
-                if len(error_lines) > 30:
-                    completed_lines.append("    Error (truncated):")
-                    for el in error_lines[:20]:
-                        completed_lines.append(f"      {el}")
-                    completed_lines.append(f"      ... ({len(error_lines) - 25} lines omitted)")
-                    for el in error_lines[-5:]:
-                        completed_lines.append(f"      {el}")
-                else:
-                    completed_lines.append("    Error:")
-                    for el in error_lines:
-                        completed_lines.append(f"      {el}")
+                truncated = truncate_stacktrace(q["error"], max_lines=30)
+                completed_lines.append("    Error:")
+                for el in truncated.splitlines():
+                    completed_lines.append(f"      {el}")
             completed_lines.append("")
 
     return "\n".join(active_lines), "\n".join(completed_lines)
@@ -517,6 +512,8 @@ def _parse_streaming_query_stats_html(page: str, run_id: str) -> str:
 
     # Extract JS variables with time-series data
     # v1=input rate, v2=processing rate, v3=input rows, plus batch duration breakdown
+    # Variable names v1/v2/v3 are Spark UI implementation details —
+    # ordering has changed across Spark versions and may need updating
     js_vars = re.findall(r"var\s+(v\d+)\s*=\s*(\[.*?\]);", page, re.DOTALL)
 
     label_map = {"v1": "Input Rate (rows/s)", "v2": "Processing Rate (rows/s)", "v3": "Input Rows"}
@@ -526,8 +523,6 @@ def _parse_streaming_query_stats_html(page: str, run_id: str) -> str:
         if not label:
             continue
         try:
-            import json
-
             data = json.loads(var_data)
             if data:
                 values = [d["y"] for d in data if "y" in d]
@@ -553,9 +548,12 @@ def _parse_streaming_query_stats_html(page: str, run_id: str) -> str:
         lines.append(f"  {'Time':<16} {'addBatch':<14} {'queryPlanning':<16} {'walCommit':<12}")
         lines.append("  " + "-" * 56)
         for time_str, add_batch, query_plan, wal in recent:
-            lines.append(
-                f"  {time_str:<16} {float(add_batch):>10.0f}ms   {float(query_plan):>10.0f}ms     {float(wal):>8.0f}ms"
-            )
+            try:
+                lines.append(
+                    f"  {time_str:<16} {float(add_batch):>10.0f}ms   {float(query_plan):>10.0f}ms     {float(wal):>8.0f}ms"
+                )
+            except ValueError:
+                lines.append(f"  {time_str:<16} {add_batch:<14} {query_plan:<16} {wal:<12}")
 
     if len(lines) <= 2:
         lines.append("No batch metrics available.")

@@ -11,7 +11,6 @@ def mock_workspace_client():
     mock_client = MagicMock()
     with patch("databricks_debug_mcp.client._client", None):
         with patch("databricks_debug_mcp.client.WorkspaceClient", return_value=mock_client):
-            # Also patch get_workspace_client in tool modules that import it
             with patch("databricks_debug_mcp.client.get_config") as mock_cfg:
                 mock_cfg.return_value = MagicMock(profile="TEST")
                 yield mock_client

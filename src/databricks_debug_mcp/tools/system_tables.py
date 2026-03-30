@@ -131,7 +131,8 @@ def register(mcp: FastMCP) -> None:
             conditions.append("executed_by ILIKE :user_filter")
             params.append(StatementParameterListItem(name="user_filter", value=f"%{user}%"))
         if duration_ms_gt:
-            conditions.append(f"total_duration_ms > {int(duration_ms_gt)}")
+            conditions.append("total_duration_ms > :dur_ms")
+            params.append(StatementParameterListItem(name="dur_ms", value=str(int(duration_ms_gt))))
         if error_only:
             conditions.append("error_message IS NOT NULL AND error_message != ''")
 
@@ -273,9 +274,13 @@ def register(mcp: FastMCP) -> None:
 
         if time_start and time_end:
             conditions = [
-                f"event_time >= '{time_start}'",
-                f"event_time <= '{time_end}'",
+                "event_time >= :time_start",
+                "event_time <= :time_end",
             ]
+            params.extend([
+                StatementParameterListItem(name="time_start", value=time_start),
+                StatementParameterListItem(name="time_end", value=time_end),
+            ])
         else:
             hours_back = min(float(hours_back), 720.0)
             conditions = [f"event_time >= current_timestamp() - INTERVAL {int(hours_back)} HOUR"]
@@ -292,7 +297,8 @@ def register(mcp: FastMCP) -> None:
         if errors_only:
             conditions.append("response.error_message IS NOT NULL AND response.error_message != ''")
         if status_code_gte:
-            conditions.append(f"response.status_code >= {int(status_code_gte)}")
+            conditions.append("response.status_code >= :status_min")
+            params.append(StatementParameterListItem(name="status_min", value=str(int(status_code_gte))))
 
         where = " AND ".join(conditions)
 
@@ -358,8 +364,13 @@ def register(mcp: FastMCP) -> None:
         (UC 504s, etc.) in the same window. Use time_start/time_end (ISO 8601 UTC)
         for precise incident forensics, or hours_back for recent overview.
         """
+        params: list[StatementParameterListItem] = []
         if time_start and time_end:
-            time_cond = f"event_time >= '{time_start}' AND event_time <= '{time_end}'"
+            time_cond = "event_time >= :time_start AND event_time <= :time_end"
+            params.extend([
+                StatementParameterListItem(name="time_start", value=time_start),
+                StatementParameterListItem(name="time_end", value=time_end),
+            ])
         else:
             hours_back = min(float(hours_back), 48.0)
             time_cond = f"event_time >= current_timestamp() - INTERVAL {int(hours_back * 60)} MINUTE"
@@ -387,14 +398,13 @@ def register(mcp: FastMCP) -> None:
         """
 
         try:
-            rows = execute_sql(query, warehouse_id=warehouse_id)
+            rows = execute_sql(query, warehouse_id=warehouse_id, parameters=params if params else None)
         except Exception as e:
             return f"Failed to query workspace failures: {e}"
 
         if not rows:
             return "No failures found in the specified window."
 
-        # Separate job failures from service errors
         job_failures = [r for r in rows if r.get("action_name") == "runFailed"]
         service_errors = [
             r for r in rows if r.get("action_name") != "runFailed" and int(r.get("status_code") or 0) >= 400
@@ -435,7 +445,11 @@ def register(mcp: FastMCP) -> None:
 
 
 def _max_concurrent_nodes(nodes: list[dict]) -> int:
-    """Calculate peak concurrent worker count from node timeline data."""
+    """Calculate peak concurrent worker count from node timeline data.
+
+    Uses string-sort on timestamps — correct only for ISO 8601 formatted values
+    (which system.compute.node_timeline returns).
+    """
     events = []
     for n in nodes:
         start = n.get("start_time")

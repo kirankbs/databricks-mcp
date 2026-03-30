@@ -27,7 +27,6 @@ def register(mcp: FastMCP) -> None:
 
         lines = [f"Init script status -- cluster {cluster.cluster_name or cluster_id}:\n"]
 
-        # List configured init scripts
         init_scripts = cluster.init_scripts or []
         if init_scripts:
             lines.append(f"Configured init scripts ({len(init_scripts)}):")
@@ -49,7 +48,6 @@ def register(mcp: FastMCP) -> None:
         else:
             lines.append("No init scripts configured.")
 
-        # Check cluster events for init script results
         try:
             init_events = []
             for event in w.clusters.events(cluster_id=cluster_id, order="DESC"):
@@ -80,7 +78,6 @@ def register(mcp: FastMCP) -> None:
         except Exception:
             lines.append("\n(Unable to fetch cluster events)")
 
-        # Try to read init script log files from DBFS
         log_conf = cluster.cluster_log_conf
         if log_conf and log_conf.dbfs:
             base_path = log_conf.dbfs.destination.rstrip("/")

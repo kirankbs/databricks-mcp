@@ -141,7 +141,7 @@ def register(mcp: FastMCP) -> None:
             try:
                 out = w.jobs.get_run_output(run_id=task_run_id)
             except Exception as e:
-                outputs.append(f"=== {task.task_key} (run_id {task_run_id}) ===\nFailed to fetch output: {e}")
+                outputs.append(f"=== {task.task_key} (run_id: {task_run_id}) ===\nFailed to fetch output: {e}")
                 continue
 
             block = [f"=== {task.task_key} (run_id: {task_run_id}) ==="]

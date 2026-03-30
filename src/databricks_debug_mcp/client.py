@@ -45,6 +45,10 @@ def spark_ui_html(cluster_id: str, path: str) -> str:
 _app_id_cache: dict[str, str] = {}
 
 
+def clear_app_id_cache() -> None:
+    _app_id_cache.clear()
+
+
 def get_spark_app_id(cluster_id: str) -> str:
     """Discover the Spark application ID for a running cluster.
 

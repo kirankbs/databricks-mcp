@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..client import get_workspace_client
 from ..formatting import enum_val
+from ..sql import execute_sql
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
@@ -70,8 +71,8 @@ def register(mcp: FastMCP) -> None:
                     # Duration not directly available; approximate if both times exist
                     dur = "--"
                     lines.append(f"{uid:<38} {state:<15} {cause:<15} {created:<22} {dur}")
-        except Exception:
-            lines.append("\n(Unable to fetch update history)")
+        except Exception as e:
+            lines.append(f"\n(Unable to fetch update history: {e})")
 
         return "\n".join(lines)
 
@@ -141,8 +142,6 @@ def register(mcp: FastMCP) -> None:
         Queries the pipeline's event log for flow_progress events containing expectation results.
         Shows which data quality rules are failing and how many rows are affected.
         """
-        from ..sql import execute_sql
-
         if not _UUID_RE.match(pipeline_id):
             return f"Invalid pipeline_id format: {pipeline_id!r}. Expected UUID."
 

@@ -30,6 +30,9 @@ def register(mcp: FastMCP) -> None:
         Returns last tail_lines lines, or lines matching search_pattern with 2 lines of context.
         Error patterns (OOM, GC, DriverStoppedException) are prefixed with >>> for visibility.
         """
+        if log_type not in ("stdout", "stderr"):
+            return f"Invalid log_type '{log_type}'. Must be 'stdout' or 'stderr'."
+
         w = get_workspace_client()
 
         try:
@@ -65,7 +68,8 @@ def register(mcp: FastMCP) -> None:
             )
 
         file_size = file_info.file_size or 0
-        # Estimate 200 bytes/line; cap at DBFS 1 MB limit per read
+        if file_size == 0:
+            return f"Log file {log_path} is empty."
         offset = max(0, file_size - tail_lines * 200)
         read_length = min(1_048_576, file_size - offset)
 

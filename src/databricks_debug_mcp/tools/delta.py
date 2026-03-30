@@ -50,7 +50,6 @@ def register(mcp: FastMCP) -> None:
         lines.append(f"Min writer version: {d.get('minWriterVersion', '?')}")
         lines.append(f"Table properties:   {table_props}")
 
-        # Health checks
         issues = []
         if num_files > 0 and avg_file_size < 32 * 1024 * 1024:
             issues.append(
@@ -63,7 +62,6 @@ def register(mcp: FastMCP) -> None:
                 "AUTO-OPTIMIZE not set: consider ALTER TABLE SET TBLPROPERTIES ('delta.autoOptimize.optimizeWrite' = 'true')"
             )
 
-        # Get last optimize/vacuum from history
         try:
             history_rows = execute_sql(
                 f"DESCRIBE HISTORY {table_name} LIMIT 50",
@@ -91,7 +89,6 @@ def register(mcp: FastMCP) -> None:
             lines.append("\nLast OPTIMIZE:      (unable to read history)")
             lines.append("Last VACUUM:        (unable to read history)")
 
-        # Try predictive optimization with proper filtering
         parts = table_name.split(".")
         if len(parts) == 3:
             try:
@@ -175,7 +172,10 @@ def register(mcp: FastMCP) -> None:
             if metrics.get("numOutputRows"):
                 metric_parts.append(f"rows: {metrics['numOutputRows']}")
             if metrics.get("numOutputBytes"):
-                metric_parts.append(f"bytes: {format_bytes(int(metrics['numOutputBytes']))}")
+                try:
+                    metric_parts.append(f"bytes: {format_bytes(int(metrics['numOutputBytes']))}")
+                except (ValueError, TypeError):
+                    pass
             if metrics.get("numAddedFiles"):
                 metric_parts.append(f"+{metrics['numAddedFiles']} files")
             if metrics.get("numRemovedFiles"):

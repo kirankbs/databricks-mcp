@@ -169,8 +169,6 @@ def register(mcp: FastMCP) -> None:
                 continue
 
             task_info = event.get("Task Info", {})
-            if not task_info.get("Failed", False):
-                continue
 
             stage_id = event.get("Stage ID", "?")
             task_id = task_info.get("Task ID", "?")
@@ -203,7 +201,6 @@ def register(mcp: FastMCP) -> None:
             shown = failed_tasks[:max_failures]
             lines.append(f"FAILED TASKS ({len(failed_tasks)} total, showing {len(shown)}):\n")
 
-            # Group by failure reason for summary
             reason_counts: dict[str, int] = {}
             for t in failed_tasks:
                 reason_counts[t["reason"]] = reason_counts.get(t["reason"], 0) + 1
@@ -212,7 +209,6 @@ def register(mcp: FastMCP) -> None:
                 lines.append(f"  {reason}: {count}")
             lines.append("")
 
-            # Group by stage for summary
             stage_counts: dict[str, int] = {}
             for t in failed_tasks:
                 key = str(t["stage_id"])
@@ -305,7 +301,6 @@ def register(mcp: FastMCP) -> None:
 
             stage_tasks.setdefault(sid, []).append(task_data)
 
-        # Get stage names from completed stage events
         stage_names: dict[int, str] = {}
         for event in events:
             if event.get("Event") == "SparkListenerStageCompleted":
@@ -339,7 +334,6 @@ def register(mcp: FastMCP) -> None:
             total_runtime = sum(t["executor_run_time"] for t in tasks)
             gc_pct = (total_gc / total_runtime * 100) if total_runtime > 0 else 0
 
-            # Find straggler task
             straggler = max(tasks, key=lambda t: t["executor_run_time"])
 
             analyses.append(
