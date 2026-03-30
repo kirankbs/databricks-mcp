@@ -277,10 +277,12 @@ def register(mcp: FastMCP) -> None:
                 "event_time >= :time_start",
                 "event_time <= :time_end",
             ]
-            params.extend([
-                StatementParameterListItem(name="time_start", value=time_start),
-                StatementParameterListItem(name="time_end", value=time_end),
-            ])
+            params.extend(
+                [
+                    StatementParameterListItem(name="time_start", value=time_start),
+                    StatementParameterListItem(name="time_end", value=time_end),
+                ]
+            )
         else:
             hours_back = min(float(hours_back), 720.0)
             conditions = [f"event_time >= current_timestamp() - INTERVAL {int(hours_back)} HOUR"]
@@ -367,10 +369,12 @@ def register(mcp: FastMCP) -> None:
         params: list[StatementParameterListItem] = []
         if time_start and time_end:
             time_cond = "event_time >= :time_start AND event_time <= :time_end"
-            params.extend([
-                StatementParameterListItem(name="time_start", value=time_start),
-                StatementParameterListItem(name="time_end", value=time_end),
-            ])
+            params.extend(
+                [
+                    StatementParameterListItem(name="time_start", value=time_start),
+                    StatementParameterListItem(name="time_end", value=time_end),
+                ]
+            )
         else:
             hours_back = min(float(hours_back), 48.0)
             time_cond = f"event_time >= current_timestamp() - INTERVAL {int(hours_back * 60)} MINUTE"

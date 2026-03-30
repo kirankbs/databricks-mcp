@@ -160,9 +160,7 @@ def _decompress_hadoop_lz4(data: bytes) -> bytes:
             compressed_size = struct.unpack(">I", sub_header)[0]
             compressed_data = buf.read(compressed_size)
             if len(compressed_data) < compressed_size:
-                raise ValueError(
-                    f"Truncated LZ4 block: expected {compressed_size} bytes, got {len(compressed_data)}"
-                )
+                raise ValueError(f"Truncated LZ4 block: expected {compressed_size} bytes, got {len(compressed_data)}")
             decompressed = lz4.block.decompress(
                 compressed_data,
                 uncompressed_size=min(remaining, original_size),

@@ -156,6 +156,7 @@ class TestSparkUiHtml:
 class TestGetSparkAppId:
     def setup_method(self):
         from databricks_debug_mcp.client import clear_app_id_cache
+
         clear_app_id_cache()
 
     @patch("databricks_debug_mcp.client.spark_ui_request")
