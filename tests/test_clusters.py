@@ -99,7 +99,7 @@ class TestGetClusterInfo:
         c.cluster_log_conf = None
         c.termination_reason.type = MagicMock(value="USER_REQUEST")
         c.termination_reason.code = MagicMock(value="USER_REQUEST")
-        c.termination_reason.parameters = {"username": "admin@corp.com"}
+        c.termination_reason.parameters = {"username": "admin@example.com"}
         mock_client.clusters.get.return_value = c
 
         mcp = FastMCP("test")

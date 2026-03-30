@@ -229,7 +229,7 @@ These orchestrate Phase 1-3 tools to answer higher-level questions.
 
 ### Step 2: Phase 1 tools — jobs.py
 - `list_job_runs`, `get_run_details`, `get_task_output`
-- Test against the door-damage job (ID: 547102524923428)
+- Test against a known failed job
 
 ### Step 3: Phase 1 tools — clusters.py
 - `get_cluster_info`, `get_cluster_events`, `get_cluster_for_run`
@@ -249,11 +249,11 @@ These orchestrate Phase 1-3 tools to answer higher-level questions.
 
 ### Step 7: Phase 4 tools — diagnostics.py
 - `compare_runs`, `get_run_timeline`, `investigate_failure`
-- Test `investigate_failure` end-to-end on the door-damage failed run (516194756572712)
+- Test `investigate_failure` end-to-end on a known failed run
 
 ### Step 8: Wire up MCP config
 - Create `.mcp.json` for Claude Code integration
-- Test full investigation workflow: "investigate the door-damage feature-extraction failure from Mar 17"
+- Test full investigation workflow: "investigate the failed feature-extraction job from last week"
 
 ---
 
@@ -277,10 +277,10 @@ These orchestrate Phase 1-3 tools to answer higher-level questions.
 1. `pip install -e .` — package installs cleanly
 2. `databricks-debug-mcp` — server starts, lists all 17 tools
 3. Add to Claude Code `.mcp.json` — tools appear in Claude's tool list
-4. Test Phase 1: `list_job_runs(job_name="door-damage")` → `get_run_details(run_id=516194756572712)` → `get_task_output(run_id=516194756572712)` → `get_cluster_events(cluster_id=...)` → `get_driver_logs(cluster_id=...)`
+4. Test Phase 1: `list_job_runs(job_name="my-etl-job")` → `get_run_details(run_id=...)` → `get_task_output(run_id=...)` → `get_cluster_events(cluster_id=...)` → `get_driver_logs(cluster_id=...)`
 5. Test Phase 2: Run against a live cluster — verify Spark UI proxy URL works
-6. Test Phase 4: `investigate_failure(run_id=516194756572712)` returns structured diagnostic
-7. Full integration: Ask Claude "investigate the door-damage feature-extraction failure from March 17" — verify Claude uses the tools in the right sequence
+6. Test Phase 4: `investigate_failure(run_id=...)` returns structured diagnostic
+7. Full integration: Ask Claude "investigate the failed ETL job" — verify Claude uses the tools in the right sequence
 
 ## Decisions Made
 
